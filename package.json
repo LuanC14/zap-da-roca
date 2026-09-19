@@ -12,7 +12,8 @@
     "db:reset": "supabase db reset",
     "db:status": "supabase status",
     "db:migrate": "supabase migration up",
-    "db:new": "supabase migration new"
+    "db:new": "supabase migration new",
+    "tunnel": "docker compose up tunnel"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

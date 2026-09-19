@@ -1,0 +1,9 @@
+services:
+  tunnel:
+    image: ngrok/ngrok:latest
+    command: http host.docker.internal:3000 --log=stdout
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    ports:
+      - "4040:4040"   # painel web do ngrok: http://localhost:4040
+    restart: unless-stopped
