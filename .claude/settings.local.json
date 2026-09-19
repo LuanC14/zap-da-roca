@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($skillDir = \"C:\\\\Users\\\\Desktop\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\5defa942-ba2a-432b-9526-8d79f5f1429d\\\\d1681b4a-34cb-4cea-a548-4e89315e9467\\\\skills\\\\docx\"; Copy-Item \"C:\\\\Users\\\\Desktop\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Luan-Documents-dev-roca-projeto-pedro\\\\9b16aab3-688f-4af2-a240-2712bdef407d\\\\scratchpad\\\\gerar-doc.js\" \"$skillDir\\\\gerar-doc.js\"; cd $skillDir; node gerar-doc.js 2>&1)"
+    ]
+  }
+}
