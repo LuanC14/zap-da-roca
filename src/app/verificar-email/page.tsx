@@ -1,4 +1,4 @@
-import { OtpForm } from './otp-form'
+import { CheckEmailCard } from './check-email-card'
 
 export default async function VerificarEmailPage({
   searchParams,
@@ -6,5 +6,5 @@ export default async function VerificarEmailPage({
   searchParams: Promise<{ email?: string }>
 }) {
   const { email } = await searchParams
-  return <OtpForm email={email ?? ''} />
+  return <CheckEmailCard email={email ?? ''} />
 }

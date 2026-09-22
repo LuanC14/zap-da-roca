@@ -33,6 +33,7 @@ export async function register(state: FormState, formData: FormData): Promise<Fo
     password,
     options: {
       data: { full_name },
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
     },
   })
 
