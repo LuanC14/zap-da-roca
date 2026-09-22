@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confirme seu e-mail</title>
+</head>
+<body style="margin:0;padding:0;background-color:#070c1a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#070c1a;padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
+
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background-color:rgba(6,182,212,0.15);border-radius:8px;width:36px;height:36px;text-align:center;vertical-align:middle;">
+                    <span style="color:#06b6d4;font-size:13px;font-weight:700;line-height:36px;">ZR</span>
+                  </td>
+                  <td style="padding-left:10px;color:#f8fafc;font-size:17px;font-weight:700;vertical-align:middle;">
+                    Zap da Roça
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background-color:#0f172a;border-radius:12px;border:1px solid #1e293b;padding:40px 32px;text-align:center;">
+
+              <p style="margin:0 0 8px;color:#94a3b8;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">
+                Verificação de e-mail
+              </p>
+              <h1 style="margin:0 0 16px;color:#f8fafc;font-size:24px;font-weight:700;">
+                Confirme seu cadastro
+              </h1>
+              <p style="margin:0 0 32px;color:#94a3b8;font-size:15px;line-height:1.6;">
+                Use o código abaixo para confirmar seu e-mail e ativar sua conta.
+              </p>
+
+              <!-- OTP Code -->
+              <table cellpadding="0" cellspacing="0" style="margin:0 auto 32px;">
+                <tr>
+                  <td style="background-color:#06b6d4;border-radius:10px;padding:18px 40px;">
+                    <span style="color:#070c1a;font-size:36px;font-weight:800;font-family:'Courier New',Courier,monospace;letter-spacing:0.25em;">
+                      {{ .Token }}
+                    </span>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 8px;color:#64748b;font-size:13px;">
+                O código expira em <strong style="color:#94a3b8;">1 hora</strong>.
+              </p>
+              <p style="margin:0;color:#64748b;font-size:13px;">
+                Se você não criou uma conta no Zap da Roça, ignore este e-mail.
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding-top:24px;">
+              <p style="margin:0;color:#334155;font-size:12px;">
+                Zap da Roça &mdash; Gestão financeira para o campo
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
