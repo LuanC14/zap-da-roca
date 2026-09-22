@@ -1,15 +1,27 @@
+import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { LogoutButton } from '@/components/logout-button'
+import { SubscriptionInfo } from './subscription-info'
 
 export default async function ConfiguracoesPage() {
-  const { data: categories } = await supabaseAdmin
-    .from('categories')
-    .select('*')
-    .order('type')
-    .order('name')
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const [{ data: profile }, { data: categories }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('full_name, subscription_status, trial_ends_at, current_period_end, subscription_id')
+      .eq('id', user!.id)
+      .single(),
+    supabaseAdmin
+      .from('categories')
+      .select('*')
+      .order('type')
+      .order('name'),
+  ])
 
   return (
     <div className="space-y-8 max-w-3xl">
@@ -19,6 +31,44 @@ export default async function ConfiguracoesPage() {
         <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5">Sistema</p>
         <h1 className="text-3xl font-bold font-heading text-foreground">Configurações</h1>
       </div>
+
+      {/* Conta */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Conta
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+
+          {/* User info */}
+          <div className="pb-4 border-b border-border">
+            <p className="text-sm font-medium text-foreground">{profile?.full_name ?? '—'}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{user?.email}</p>
+          </div>
+
+          {/* Subscription */}
+          <div className="pb-4 border-b border-border">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Assinatura</p>
+            <SubscriptionInfo
+              status={(profile?.subscription_status ?? 'trial') as any}
+              trialEndsAt={profile?.trial_ends_at ?? null}
+              currentPeriodEnd={profile?.current_period_end ?? null}
+              hasSubscriptionId={!!profile?.subscription_id}
+            />
+          </div>
+
+          {/* Logout */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-foreground font-medium">Encerrar sessão</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Você será redirecionado para a página inicial.</p>
+            </div>
+            <LogoutButton />
+          </div>
+
+        </CardContent>
+      </Card>
 
       {/* Categorias */}
       <Card>
@@ -98,24 +148,6 @@ export default async function ConfiguracoesPage() {
             Configure as variáveis de ambiente conforme{' '}
             <code className="bg-muted px-1.5 py-0.5 rounded text-primary text-[11px]">.env.local.example</code>.
           </p>
-        </CardContent>
-      </Card>
-
-      {/* Conta */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Conta
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-foreground font-medium">Encerrar sessão</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Você será redirecionado para a página inicial.</p>
-            </div>
-            <LogoutButton />
-          </div>
         </CardContent>
       </Card>
 
