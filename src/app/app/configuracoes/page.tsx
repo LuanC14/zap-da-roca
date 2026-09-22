@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { LogoutButton } from '@/components/logout-button'
 
 export default async function ConfiguracoesPage() {
   const { data: categories } = await supabaseAdmin
@@ -97,6 +98,24 @@ export default async function ConfiguracoesPage() {
             Configure as variáveis de ambiente conforme{' '}
             <code className="bg-muted px-1.5 py-0.5 rounded text-primary text-[11px]">.env.local.example</code>.
           </p>
+        </CardContent>
+      </Card>
+
+      {/* Conta */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Conta
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-foreground font-medium">Encerrar sessão</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Você será redirecionado para a página inicial.</p>
+            </div>
+            <LogoutButton />
+          </div>
         </CardContent>
       </Card>
 
