@@ -14,7 +14,7 @@ export default async function RelatoriosPage({
   const start = params.start ?? range.start
   const end = params.end ?? range.end
 
-  const [{ data: transactions }, { data: workRecords }, { data: employees }] = await Promise.all([
+  const [{ data: transactions }, { data: workRecords }] = await Promise.all([
     supabaseAdmin
       .from('transactions')
       .select('type, amount, categories(name)')
@@ -25,20 +25,17 @@ export default async function RelatoriosPage({
       .select('daily_rate_snapshot, overtime_hours, overtime_rate_snapshot, employees(name)')
       .gte('work_date', start)
       .lte('work_date', end),
-    supabaseAdmin.from('employees').select('id, name').eq('active', true),
   ])
 
   const income = (transactions ?? []).filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const expenses = (transactions ?? []).filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
 
-  // Expenses by category
   const byCategory: Record<string, number> = {}
   for (const t of (transactions ?? []).filter((t) => t.type === 'expense')) {
     const cat = (t.categories as unknown as { name: string } | null)?.name ?? 'Sem categoria'
     byCategory[cat] = (byCategory[cat] ?? 0) + t.amount
   }
 
-  // Labor cost by employee
   const byEmployee: Record<string, { name: string; days: number; extraCost: number; total: number }> = {}
   for (const r of workRecords ?? []) {
     const name = (r.employees as unknown as { name: string } | null)?.name ?? 'Desconhecido'
@@ -51,92 +48,103 @@ export default async function RelatoriosPage({
   const totalLabor = Object.values(byEmployee).reduce((s, e) => s + e.total, 0)
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Relatórios</h1>
-        <p className="text-muted-foreground text-sm">
-          Período: {formatBrazilian(start)} a {formatBrazilian(end)}
+    <div className="space-y-8 max-w-5xl">
+
+      {/* Header */}
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5">Análise</p>
+          <h1 className="text-3xl font-bold font-heading text-foreground">Relatórios</h1>
+        </div>
+        <p className="text-xs text-muted-foreground pb-1">
+          {formatBrazilian(start)} a {formatBrazilian(end)}
         </p>
       </div>
 
-      {/* Resumo geral */}
+      {/* KPI tiles */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: '💚 Receitas', value: formatCurrency(income), color: 'text-green-700' },
-          { label: '🔴 Despesas', value: formatCurrency(expenses), color: 'text-red-600' },
-          { label: '💰 Saldo', value: formatCurrency(income - expenses), color: income - expenses >= 0 ? 'text-green-700' : 'text-red-600' },
-          { label: '👷 Mão de Obra', value: formatCurrency(totalLabor), color: 'text-amber-700' },
+          { label: 'Receitas',    value: formatCurrency(income),              color: 'text-emerald-400', border: 'border-emerald-400' },
+          { label: 'Despesas',    value: formatCurrency(expenses),            color: 'text-rose-400',    border: 'border-rose-400' },
+          { label: 'Saldo',       value: formatCurrency(income - expenses),   color: income - expenses >= 0 ? 'text-emerald-400' : 'text-rose-400', border: income - expenses >= 0 ? 'border-emerald-400' : 'border-rose-400' },
+          { label: 'Mão de Obra', value: formatCurrency(totalLabor),          color: 'text-amber-400',   border: 'border-amber-400' },
         ].map((kpi) => (
-          <Card key={kpi.label}>
-            <CardContent className="pt-5">
-              <div className="text-xs text-muted-foreground mb-1">{kpi.label}</div>
-              <div className={`text-xl font-bold ${kpi.color}`}>{kpi.value}</div>
+          <Card key={kpi.label} className={`border-t-2 ${kpi.border}`}>
+            <CardContent className="pt-5 pb-5">
+              <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">{kpi.label}</div>
+              <div className={`text-2xl font-bold font-heading tabular ${kpi.color}`}>{kpi.value}</div>
             </CardContent>
           </Card>
         ))}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
+
         {/* Despesas por categoria */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Despesas por Categoria</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Despesas por Categoria
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {Object.keys(byCategory).length === 0 ? (
-              <p className="text-muted-foreground text-sm">Nenhuma despesa no período.</p>
+              <p className="text-muted-foreground text-sm py-4 text-center">Nenhuma despesa no período.</p>
             ) : (
-              <ul className="space-y-2">
+              <ul className="space-y-2.5">
                 {Object.entries(byCategory)
                   .sort(([, a], [, b]) => b - a)
                   .map(([cat, total]) => (
-                    <li key={cat} className="flex justify-between text-sm">
-                      <span>{cat}</span>
-                      <span className="font-medium text-red-600">{formatCurrency(total)}</span>
+                    <li key={cat} className="flex justify-between items-center text-sm">
+                      <span className="text-foreground">{cat}</span>
+                      <span className="tabular font-semibold text-rose-400">{formatCurrency(total)}</span>
                     </li>
                   ))}
-                <Separator className="my-2" />
-                <li className="flex justify-between text-sm font-bold">
-                  <span>Total</span>
-                  <span className="text-red-700">{formatCurrency(expenses)}</span>
+                <Separator className="my-3 bg-border" />
+                <li className="flex justify-between items-center text-sm font-bold">
+                  <span className="text-muted-foreground uppercase tracking-wider text-xs">Total</span>
+                  <span className="tabular text-rose-400">{formatCurrency(expenses)}</span>
                 </li>
               </ul>
             )}
           </CardContent>
         </Card>
 
-        {/* Custo de mão de obra por funcionário */}
+        {/* Mão de obra por funcionário */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Mão de Obra por Funcionário</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Mão de Obra por Funcionário
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {Object.keys(byEmployee).length === 0 ? (
-              <p className="text-muted-foreground text-sm">Nenhum registro de ponto no período.</p>
+              <p className="text-muted-foreground text-sm py-4 text-center">Nenhum registro de ponto no período.</p>
             ) : (
-              <ul className="space-y-2">
+              <ul className="space-y-3">
                 {Object.values(byEmployee)
                   .sort((a, b) => b.total - a.total)
                   .map((e) => (
-                    <li key={e.name} className="text-sm">
-                      <div className="flex justify-between">
+                    <li key={e.name}>
+                      <div className="flex justify-between items-center text-sm">
                         <span className="font-medium">{e.name}</span>
-                        <span className="font-medium text-amber-700">{formatCurrency(e.total)}</span>
+                        <span className="tabular font-semibold text-amber-400">{formatCurrency(e.total)}</span>
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {e.days} diária(s) + {formatCurrency(e.extraCost)} extras
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {e.days} diária{e.days !== 1 ? 's' : ''} · {formatCurrency(e.extraCost)} extras
                       </div>
                     </li>
                   ))}
-                <Separator className="my-2" />
-                <li className="flex justify-between text-sm font-bold">
-                  <span>Total</span>
-                  <span className="text-amber-700">{formatCurrency(totalLabor)}</span>
+                <Separator className="my-3 bg-border" />
+                <li className="flex justify-between items-center text-sm font-bold">
+                  <span className="text-muted-foreground uppercase tracking-wider text-xs">Total</span>
+                  <span className="tabular text-amber-400">{formatCurrency(totalLabor)}</span>
                 </li>
               </ul>
             )}
           </CardContent>
         </Card>
+
       </div>
     </div>
   )

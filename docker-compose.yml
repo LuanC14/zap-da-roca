@@ -1,7 +1,7 @@
 services:
   tunnel:
     image: ngrok/ngrok:latest
-    command: http host.docker.internal:3000 --log=stdout
+    command: http host.docker.internal:3000 --url=https://roamer-corned-dispersal.ngrok-free.dev --log=stdout
     environment:
       NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
     ports:

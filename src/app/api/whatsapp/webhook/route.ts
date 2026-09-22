@@ -42,6 +42,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const reply = await handleCommand(parsed, incoming.from, incoming.messageId)
+
+    // Dev-only: return reply in response body instead of sending via WhatsApp
+    if (process.env.NODE_ENV !== 'production' && req.headers.get('x-test-mode') === '1') {
+      return NextResponse.json({ status: 'ok', reply })
+    }
+
     await sendWhatsAppMessage(incoming.from, reply)
   } catch (err) {
     console.error('handleCommand error:', err)

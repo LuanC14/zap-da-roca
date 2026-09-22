@@ -1,9 +1,19 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Syne, DM_Sans } from 'next/font/google'
 import './globals.css'
 import { Sidebar } from '@/components/sidebar'
 
-const inter = Inter({ subsets: ['latin'] })
+const syne = Syne({
+  subsets: ['latin'],
+  variable: '--font-heading',
+  display: 'swap',
+})
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  variable: '--font-sans',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'ZapRural — Gestão Financeira no Campo',
@@ -12,11 +22,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR">
-      <body className={inter.className}>
+    <html lang="pt-BR" className={`dark ${syne.variable} ${dmSans.variable}`}>
+      <body>
         <div className="flex min-h-screen bg-background">
           <Sidebar />
-          <main className="flex-1 p-6 overflow-auto">{children}</main>
+          <main className="flex-1 p-8 overflow-auto min-w-0 bg-dot-grid">{children}</main>
         </div>
       </body>
     </html>
