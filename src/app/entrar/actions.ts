@@ -16,6 +16,9 @@ export async function login(state: FormState, formData: FormData): Promise<FormS
   const { error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
+    if (error.code === 'email_not_confirmed') {
+      redirect(`/verificar-email?email=${encodeURIComponent(email)}`)
+    }
     return { message: 'E-mail ou senha incorretos.' }
   }
 

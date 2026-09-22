@@ -26,7 +26,7 @@ export default function CadastroPage() {
         <form action={action} className="space-y-4">
           <div>
             <label htmlFor="full_name" className="block text-sm font-medium text-foreground mb-1.5">
-              Seu nome
+              Nome completo
             </label>
             <input
               id="full_name"
@@ -39,23 +39,6 @@ export default function CadastroPage() {
             />
             {state?.errors?.full_name && (
               <p className="text-xs text-rose-400 mt-1">{state.errors.full_name[0]}</p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="farm_name" className="block text-sm font-medium text-foreground mb-1.5">
-              Nome da fazenda / propriedade
-            </label>
-            <input
-              id="farm_name"
-              name="farm_name"
-              type="text"
-              required
-              className="w-full bg-card border border-border rounded-md px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-              placeholder="Fazenda Santa Cruz"
-            />
-            {state?.errors?.farm_name && (
-              <p className="text-xs text-rose-400 mt-1">{state.errors.farm_name[0]}</p>
             )}
           </div>
 
@@ -92,6 +75,24 @@ export default function CadastroPage() {
             />
             {state?.errors?.password && (
               <p className="text-xs text-rose-400 mt-1">{state.errors.password[0]}</p>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="confirm_password" className="block text-sm font-medium text-foreground mb-1.5">
+              Confirmar senha
+            </label>
+            <input
+              id="confirm_password"
+              name="confirm_password"
+              type="password"
+              autoComplete="new-password"
+              required
+              className="w-full bg-card border border-border rounded-md px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+              placeholder="Repita a senha"
+            />
+            {state?.errors?.confirm_password && (
+              <p className="text-xs text-rose-400 mt-1">{state.errors.confirm_password[0]}</p>
             )}
           </div>
 
