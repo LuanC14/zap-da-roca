@@ -13,11 +13,11 @@ import {
 } from 'lucide-react'
 
 const navItems = [
-  { href: '/',              label: 'Painel',        icon: LayoutDashboard },
-  { href: '/financeiro',    label: 'Financeiro',    icon: TrendingUp },
-  { href: '/funcionarios',  label: 'Funcionários',  icon: Users },
-  { href: '/relatorios',    label: 'Relatórios',    icon: BarChart3 },
-  { href: '/configuracoes', label: 'Configurações', icon: Settings2 },
+  { href: '/app',              label: 'Painel',        icon: LayoutDashboard },
+  { href: '/app/financeiro',   label: 'Financeiro',    icon: TrendingUp },
+  { href: '/app/funcionarios', label: 'Funcionários',  icon: Users },
+  { href: '/app/relatorios',   label: 'Relatórios',    icon: BarChart3 },
+  { href: '/app/configuracoes',label: 'Configurações', icon: Settings2 },
 ]
 
 export function Sidebar() {
@@ -33,7 +33,7 @@ export function Sidebar() {
             <span className="text-primary text-xs font-bold font-heading tracking-tight">ZR</span>
           </div>
           <div>
-            <div className="text-sm font-bold font-heading text-sidebar-foreground tracking-wide">ZapRural</div>
+            <div className="text-sm font-bold font-heading text-sidebar-foreground tracking-wide">Zap da Roça</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-widest leading-none mt-0.5">
               Gestão no Campo
             </div>
