@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { cancelSubscription } from './actions'
 
 type Status = 'trial' | 'active' | 'past_due' | 'paused' | 'cancelled'
@@ -65,7 +66,7 @@ export function SubscriptionInfo({ status, trialEndsAt, currentPeriodEnd, hasSub
 
   return (
     <div className="space-y-3">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
             <Badge
@@ -82,6 +83,12 @@ export function SubscriptionInfo({ status, trialEndsAt, currentPeriodEnd, hasSub
             <p className="text-xs text-muted-foreground">{dateLabel}</p>
           )}
         </div>
+
+        {status === 'trial' && (
+          <Link href="/assinar" className={buttonVariants({ size: 'sm' })}>
+            Assinar
+          </Link>
+        )}
 
         {canCancel && !confirming && (
           <button
