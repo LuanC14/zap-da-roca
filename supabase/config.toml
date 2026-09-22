@@ -249,7 +249,7 @@ otp_expiry = 3600
 
 [auth.email.template.confirmation]
 subject = "Seu código de verificação — Zap da Roça"
-content_path = "./templates/confirmation.html"
+content_path = "./supabase/templates/confirmation.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
