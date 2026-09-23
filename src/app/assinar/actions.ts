@@ -25,12 +25,8 @@ export async function createSubscription(formData: FormData) {
         frequency_type: 'months',
         transaction_amount: 29.90,
         currency_id: 'BRL',
-        free_trial: {
-          frequency: 7,
-          frequency_type: 'days',
-        },
       },
-      back_url: `${appUrl}/app`,
+      back_url: `${appUrl}/assinar/sucesso`,
       status: 'pending',
     },
   })

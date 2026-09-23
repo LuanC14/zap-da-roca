@@ -11,7 +11,7 @@ export default async function AssinarPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name, farm_name, subscription_status, trial_ends_at')
+    .select('full_name, subscription_status, trial_ends_at')
     .eq('id', user.id)
     .single()
 
@@ -85,7 +85,6 @@ export default async function AssinarPage() {
 
         <p className="text-center text-xs text-muted-foreground">
           Olá, <span className="text-foreground">{profile?.full_name || user.email}</span>
-          {profile?.farm_name ? ` · ${profile.farm_name}` : ''}
         </p>
       </div>
     </div>
