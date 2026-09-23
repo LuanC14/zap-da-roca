@@ -19,7 +19,7 @@ export async function createSubscription(formData: FormData) {
     body: {
       reason: 'Zap da Roça — Assinatura Mensal',
       external_reference: userId,
-      payer_email: email,
+      payer_email: process.env.MP_TEST_PAYER_EMAIL ?? email,
       auto_recurring: {
         frequency: 1,
         frequency_type: 'months',
