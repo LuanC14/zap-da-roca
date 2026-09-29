@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     .update({
       subscription_id: preApprovalId,
       subscription_status: internalStatus,
-      current_period_end: subscription.auto_recurring?.end_date ?? null,
+      current_period_end: subscription.next_payment_date ?? null,
     })
     .eq('id', userId)
 
