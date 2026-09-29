@@ -9,15 +9,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('subscription_status, trial_ends_at')
+    .select('subscription_status, trial_ends_at, is_admin')
     .eq('id', user.id)
     .single()
 
-  const status = profile?.subscription_status ?? 'trial'
-  const trialActive = status === 'trial' && !!profile?.trial_ends_at && new Date(profile.trial_ends_at) > new Date()
-  const hasAccess = trialActive || status === 'active' || status === 'payment_in_process'
-
-  if (!hasAccess) redirect('/assinar')
+  if (!profile?.is_admin) {
+    const status = profile?.subscription_status ?? 'trial'
+    const trialActive = status === 'trial' && !!profile?.trial_ends_at && new Date(profile.trial_ends_at) > new Date()
+    const hasAccess = trialActive || status === 'active' || status === 'payment_in_process'
+    if (!hasAccess) redirect('/assinar')
+  }
 
   return (
     <div className="flex min-h-screen bg-background">
