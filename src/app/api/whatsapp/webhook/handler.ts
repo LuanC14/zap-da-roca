@@ -28,34 +28,47 @@ export async function handleCommand(
   from: string,
   messageId: string
 ): Promise<string> {
+  const { data: phone } = await supabaseAdmin
+    .from('registered_phones')
+    .select('user_id')
+    .eq('whatsapp_number', from)
+    .eq('verified', true)
+    .maybeSingle()
+
+  if (!phone?.user_id) {
+    return '❌ Número não cadastrado. Acesse o portal Zap da Roça e vincule seu WhatsApp nas configurações.'
+  }
+
+  const userId = phone.user_id
+
   switch (cmd.command) {
     case 'ajuda':
       return AJUDA
 
     case 'funcionarios':
-      return handleFuncionarios()
+      return handleFuncionarios(userId)
 
     case 'saldo':
-      return handleSaldo()
+      return handleSaldo(userId)
 
     case 'relatorio':
-      return handleRelatorio(cmd.period)
+      return handleRelatorio(userId, cmd.period)
 
     case 'pago':
-      return handlePago(cmd.transactionId)
+      return handlePago(userId, cmd.transactionId)
 
     case 'pagar':
     case 'receber':
-      return handleTransaction(cmd, messageId)
+      return handleTransaction(userId, cmd, messageId)
 
     case 'ponto':
-      return handlePonto(cmd)
+      return handlePonto(userId, cmd)
 
     case 'extra':
-      return handleExtra(cmd)
+      return handleExtra(userId, cmd)
 
     case 'mao_obra':
-      return handleMaoObra(cmd.period)
+      return handleMaoObra(userId, cmd.period)
 
     default:
       return '❓ Comando não reconhecido. Envie *!ajuda* para ver todos os comandos disponíveis.'
@@ -64,10 +77,11 @@ export async function handleCommand(
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-async function handleFuncionarios(): Promise<string> {
+async function handleFuncionarios(userId: string): Promise<string> {
   const { data, error } = await supabaseAdmin
     .from('employees')
     .select('name, daily_rate, overtime_rate')
+    .eq('user_id', userId)
     .eq('active', true)
     .order('name')
 
@@ -79,12 +93,13 @@ async function handleFuncionarios(): Promise<string> {
   return `👷 *Funcionários ativos*\n\n${lines.join('\n')}`
 }
 
-async function handleSaldo(): Promise<string> {
+async function handleSaldo(userId: string): Promise<string> {
   const { start, end } = currentMonthRange()
 
   const { data } = await supabaseAdmin
     .from('transactions')
     .select('type, amount')
+    .eq('user_id', userId)
     .gte('transaction_date', start)
     .lte('transaction_date', end)
 
@@ -103,7 +118,7 @@ async function handleSaldo(): Promise<string> {
   )
 }
 
-async function handleRelatorio(period?: string): Promise<string> {
+async function handleRelatorio(userId: string, period?: string): Promise<string> {
   let start: string, end: string
 
   if (period) {
@@ -118,6 +133,7 @@ async function handleRelatorio(period?: string): Promise<string> {
   const { data } = await supabaseAdmin
     .from('transactions')
     .select('type, amount, description, transaction_date, paid, categories(name)')
+    .eq('user_id', userId)
     .gte('transaction_date', start)
     .lte('transaction_date', end)
     .order('transaction_date')
@@ -147,13 +163,14 @@ async function handleRelatorio(period?: string): Promise<string> {
   )
 }
 
-async function handlePago(id?: number): Promise<string> {
+async function handlePago(userId: string, id?: number): Promise<string> {
   if (!id) return '❌ Informe o ID do lançamento. Ex: !pago 42'
 
   const { data, error } = await supabaseAdmin
     .from('transactions')
     .update({ paid: true, paid_at: new Date().toISOString() })
     .eq('id', id)
+    .eq('user_id', userId)
     .select('amount, description, type')
     .single()
 
@@ -162,7 +179,7 @@ async function handlePago(id?: number): Promise<string> {
   return `✅ Lançamento #${id} quitado!\n${data.description} — ${formatCurrency(data.amount)}`
 }
 
-async function handleTransaction(cmd: ParsedCommand, messageId: string): Promise<string> {
+async function handleTransaction(userId: string, cmd: ParsedCommand, messageId: string): Promise<string> {
   if (!cmd.amount || !cmd.categoryKeyword) {
     const example = cmd.command === 'pagar'
       ? '!pagar 350 combustivel abastecimento trator'
@@ -170,11 +187,12 @@ async function handleTransaction(cmd: ParsedCommand, messageId: string): Promise
     return `❌ Formato inválido. Exemplo:\n${example}`
   }
 
-  // Find category by keyword
+  // Global categories (user_id IS NULL) + own categories
   const { data: cats } = await supabaseAdmin
     .from('categories')
     .select('id, name')
     .ilike('name', `%${cmd.categoryKeyword}%`)
+    .or(`user_id.eq.${userId},user_id.is.null`)
     .limit(1)
 
   const categoryId = cats?.[0]?.id ?? null
@@ -185,6 +203,7 @@ async function handleTransaction(cmd: ParsedCommand, messageId: string): Promise
   const { data, error } = await supabaseAdmin
     .from('transactions')
     .insert({
+      user_id: userId,
       type,
       amount: cmd.amount,
       category_id: categoryId,
@@ -210,12 +229,13 @@ async function handleTransaction(cmd: ParsedCommand, messageId: string): Promise
   )
 }
 
-async function handlePonto(cmd: ParsedCommand): Promise<string> {
+async function handlePonto(userId: string, cmd: ParsedCommand): Promise<string> {
   if (!cmd.employeeName) return '❌ Informe o nome do funcionário. Ex: !ponto João'
 
   const { data: employees } = await supabaseAdmin
     .from('employees')
     .select('id, name, daily_rate')
+    .eq('user_id', userId)
     .ilike('name', `%${cmd.employeeName}%`)
     .eq('active', true)
     .limit(1)
@@ -224,6 +244,7 @@ async function handlePonto(cmd: ParsedCommand): Promise<string> {
   if (!employee) return `❌ Funcionário "${cmd.employeeName}" não encontrado.`
 
   const { error } = await supabaseAdmin.from('work_records').insert({
+    user_id: userId,
     employee_id: employee.id,
     work_date: cmd.date,
     regular_hours: 8,
@@ -242,7 +263,7 @@ async function handlePonto(cmd: ParsedCommand): Promise<string> {
   )
 }
 
-async function handleExtra(cmd: ParsedCommand): Promise<string> {
+async function handleExtra(userId: string, cmd: ParsedCommand): Promise<string> {
   if (!cmd.employeeName || !cmd.hours) {
     return '❌ Formato inválido. Ex: !extra João 2'
   }
@@ -250,6 +271,7 @@ async function handleExtra(cmd: ParsedCommand): Promise<string> {
   const { data: employees } = await supabaseAdmin
     .from('employees')
     .select('id, name, overtime_rate')
+    .eq('user_id', userId)
     .ilike('name', `%${cmd.employeeName}%`)
     .eq('active', true)
     .limit(1)
@@ -257,10 +279,10 @@ async function handleExtra(cmd: ParsedCommand): Promise<string> {
   const employee = employees?.[0]
   if (!employee) return `❌ Funcionário "${cmd.employeeName}" não encontrado.`
 
-  // Try to update existing work_record for that date, otherwise insert
   const { data: existing } = await supabaseAdmin
     .from('work_records')
     .select('id, overtime_hours')
+    .eq('user_id', userId)
     .eq('employee_id', employee.id)
     .eq('work_date', cmd.date)
     .maybeSingle()
@@ -273,8 +295,10 @@ async function handleExtra(cmd: ParsedCommand): Promise<string> {
         overtime_rate_snapshot: employee.overtime_rate,
       })
       .eq('id', existing.id)
+      .eq('user_id', userId)
   } else {
     await supabaseAdmin.from('work_records').insert({
+      user_id: userId,
       employee_id: employee.id,
       work_date: cmd.date,
       regular_hours: 0,
@@ -293,7 +317,7 @@ async function handleExtra(cmd: ParsedCommand): Promise<string> {
   )
 }
 
-async function handleMaoObra(period?: string): Promise<string> {
+async function handleMaoObra(userId: string, period?: string): Promise<string> {
   let start: string, end: string
 
   if (period) {
@@ -308,12 +332,12 @@ async function handleMaoObra(period?: string): Promise<string> {
   const { data } = await supabaseAdmin
     .from('work_records')
     .select('daily_rate_snapshot, overtime_hours, overtime_rate_snapshot, employees(name)')
+    .eq('user_id', userId)
     .gte('work_date', start)
     .lte('work_date', end)
 
   if (!data?.length) return `👷 Nenhum registro de trabalho em ${formatBrazilian(start)}–${formatBrazilian(end)}.`
 
-  // Group by employee
   const byEmployee: Record<string, { name: string; days: number; extraCost: number }> = {}
   let total = 0
 
