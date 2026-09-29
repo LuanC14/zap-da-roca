@@ -5,12 +5,13 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { LogoutButton } from '@/components/logout-button'
 import { SubscriptionInfo } from './subscription-info'
+import { WhatsAppLinkForm } from './whatsapp-link-form'
 
 export default async function ConfiguracoesPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: profile }, { data: categories }] = await Promise.all([
+  const [{ data: profile }, { data: categories }, { data: registeredPhone }] = await Promise.all([
     supabase
       .from('profiles')
       .select('full_name, subscription_status, trial_ends_at, current_period_end, subscription_id')
@@ -21,6 +22,12 @@ export default async function ConfiguracoesPage() {
       .select('*')
       .order('type')
       .order('name'),
+    supabaseAdmin
+      .from('registered_phones')
+      .select('whatsapp_number')
+      .eq('user_id', user!.id)
+      .eq('verified', true)
+      .maybeSingle(),
   ])
 
   return (
@@ -129,25 +136,31 @@ export default async function ConfiguracoesPage() {
             Integração WhatsApp
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {[
-            { label: 'API',              value: 'WhatsApp Business Cloud API (Meta)' },
-            { label: 'Lembrete diário',  value: '08:00 — horário de Brasília' },
-            { label: 'Webhook',          value: '/api/whatsapp/webhook', mono: true },
-          ].map((row) => (
-            <div key={row.label} className="flex justify-between items-center text-sm py-1 border-b border-border last:border-0">
-              <span className="text-muted-foreground">{row.label}</span>
-              {row.mono ? (
-                <code className="bg-muted px-2 py-0.5 rounded text-primary text-xs">{row.value}</code>
-              ) : (
-                <span className="text-foreground">{row.value}</span>
-              )}
-            </div>
-          ))}
-          <p className="text-xs text-muted-foreground pt-1">
-            Configure as variáveis de ambiente conforme{' '}
-            <code className="bg-muted px-1.5 py-0.5 rounded text-primary text-[11px]">.env.local.example</code>.
-          </p>
+        <CardContent className="space-y-4">
+
+          {/* Phone linking */}
+          <div className="pb-4 border-b border-border">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Número vinculado</p>
+            <WhatsAppLinkForm linkedPhone={registeredPhone?.whatsapp_number ?? null} />
+          </div>
+
+          {/* Static info */}
+          <div className="space-y-2">
+            {[
+              { label: 'Lembrete diário', value: '08:00 — horário de Brasília' },
+              { label: 'Webhook',         value: '/api/whatsapp/webhook', mono: true },
+            ].map((row) => (
+              <div key={row.label} className="flex justify-between items-center text-sm py-1">
+                <span className="text-muted-foreground">{row.label}</span>
+                {row.mono ? (
+                  <code className="bg-muted px-2 py-0.5 rounded text-primary text-xs">{row.value}</code>
+                ) : (
+                  <span className="text-foreground">{row.value}</span>
+                )}
+              </div>
+            ))}
+          </div>
+
         </CardContent>
       </Card>
 
