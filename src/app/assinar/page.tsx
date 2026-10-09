@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { hasAccess, trialDaysLeft } from '@/lib/access'
 import { Check } from 'lucide-react'
 import { createSubscription } from './actions'
 
@@ -11,14 +12,12 @@ export default async function AssinarPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name, subscription_status, trial_ends_at')
+    .select('full_name, subscription_status, trial_ends_at, current_period_end, is_admin')
     .eq('id', user.id)
     .single()
 
-  const trialActive = profile?.trial_ends_at && new Date(profile.trial_ends_at) > new Date()
-  const daysLeft = profile?.trial_ends_at
-    ? Math.max(0, Math.ceil((new Date(profile.trial_ends_at).getTime() - Date.now()) / 86400000))
-    : 0
+  const trialActive = profile?.subscription_status === 'trial' && hasAccess(profile)
+  const daysLeft = trialDaysLeft(profile)
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -69,8 +68,6 @@ export default async function AssinarPage() {
           </ul>
 
           <form action={createSubscription}>
-            <input type="hidden" name="user_id" value={user.id} />
-            <input type="hidden" name="email" value={user.email} />
             <button
               type="submit"
               className="w-full bg-primary text-primary-foreground font-medium rounded-md py-3 text-sm hover:bg-primary/90 transition-colors"

@@ -1,11 +1,17 @@
 -- Seed: Categorias padrão do agronegócio
-INSERT INTO categories (name, type, is_default) VALUES
-  ('Insumos / Adubos',     'expense', true),
-  ('Combustível / Diesel', 'expense', true),
-  ('Maquinário',           'expense', true),
-  ('Mão de Obra',          'expense', true),
-  ('Venda de Safra',       'income',  true)
-ON CONFLICT DO NOTHING;
+-- (the same defaults are inserted by migration 20261008000001, so this is a no-op after migrations)
+INSERT INTO categories (name, type, is_default)
+SELECT v.name, v.type, true
+FROM (VALUES
+  ('Insumos / Adubos',     'expense'),
+  ('Combustível / Diesel', 'expense'),
+  ('Maquinário',           'expense'),
+  ('Mão de Obra',          'expense'),
+  ('Venda de Safra',       'income')
+) AS v(name, type)
+WHERE NOT EXISTS (
+  SELECT 1 FROM categories c WHERE c.user_id IS NULL AND c.name = v.name
+);
 
 -- ── Dev admin account ────────────────────────────────────────────────────────
 -- ⚠️  DEV / LOCAL ONLY — seed.sql is executed only by `supabase db reset`,

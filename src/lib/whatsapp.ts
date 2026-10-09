@@ -1,9 +1,12 @@
+import { hmacSha256Hex, safeEqual } from './security'
+
 const GRAPH_API_VERSION = 'v21.0'
 const BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`
 
 export async function sendWhatsAppMessage(to: string, text: string): Promise<void> {
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID!
-  const token = process.env.WHATSAPP_TOKEN!
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const token = process.env.WHATSAPP_TOKEN
+  if (!phoneNumberId || !token) throw new Error('WhatsApp credentials are not configured')
 
   const res = await fetch(`${BASE_URL}/${phoneNumberId}/messages`, {
     method: 'POST',
@@ -26,32 +29,34 @@ export async function sendWhatsAppMessage(to: string, text: string): Promise<voi
 }
 
 export function verifyWebhookSignature(body: string, signature: string): boolean {
-  const crypto = require('crypto')
-  const secret = process.env.WHATSAPP_APP_SECRET!
-  const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(body).digest('hex')
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))
+  const secret = process.env.WHATSAPP_APP_SECRET
+  if (!secret || !signature.startsWith('sha256=')) return false
+  return safeEqual(`sha256=${hmacSha256Hex(secret, body)}`, signature)
 }
 
-export function extractIncomingMessage(payload: Record<string, unknown>): {
+export interface IncomingMessage {
   from: string
   text: string
   messageId: string
-} | null {
-  try {
-    const entry = (payload.entry as Record<string, unknown>[])?.[0]
-    const changes = (entry?.changes as Record<string, unknown>[])?.[0]
-    const value = changes?.value as Record<string, unknown>
-    const messages = value?.messages as Record<string, unknown>[]
-    const msg = messages?.[0]
+}
 
-    if (!msg || msg.type !== 'text') return null
+// Meta may batch several messages (and entries) in one delivery — return all text messages
+export function extractIncomingMessages(payload: Record<string, unknown>): IncomingMessage[] {
+  const out: IncomingMessage[] = []
+  const entries = Array.isArray(payload.entry) ? (payload.entry as Record<string, unknown>[]) : []
 
-    return {
-      from: msg.from as string,
-      text: ((msg.text as Record<string, unknown>)?.body as string) ?? '',
-      messageId: msg.id as string,
+  for (const entry of entries) {
+    const changes = Array.isArray(entry?.changes) ? (entry.changes as Record<string, unknown>[]) : []
+    for (const change of changes) {
+      const value = change?.value as Record<string, unknown> | undefined
+      const messages = Array.isArray(value?.messages) ? (value.messages as Record<string, unknown>[]) : []
+      for (const msg of messages) {
+        if (msg?.type !== 'text' || typeof msg.from !== 'string' || typeof msg.id !== 'string') continue
+        const body = (msg.text as Record<string, unknown> | undefined)?.body
+        out.push({ from: msg.from, text: typeof body === 'string' ? body : '', messageId: msg.id })
+      }
     }
-  } catch {
-    return null
   }
+
+  return out
 }

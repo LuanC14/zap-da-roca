@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MercadoPagoConfig, PreApproval } from 'mercadopago'
 import { supabaseAdmin } from '@/lib/supabase'
-
-const client = new MercadoPagoConfig({
-  accessToken: process.env.MP_ACCESS_TOKEN!,
-})
+import { verifyMercadoPagoSignature } from '@/lib/security'
 
 const STATUS_MAP: Record<string, string> = {
   authorized: 'active',
@@ -15,6 +12,15 @@ const STATUS_MAP: Record<string, string> = {
 }
 
 export async function POST(req: NextRequest) {
+  const secret = process.env.MP_WEBHOOK_SECRET
+
+  // Without the signing secret an unauthenticated caller could drive subscription changes:
+  // refuse in production, allow in dev for local testing.
+  if (!secret && process.env.NODE_ENV === 'production') {
+    console.error('MP_WEBHOOK_SECRET is not configured — rejecting Mercado Pago webhook')
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 })
+  }
+
   let body: Record<string, unknown>
   try {
     body = await req.json()
@@ -22,12 +28,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
+  const preApprovalId = (body.data as Record<string, string> | undefined)?.id
+
+  if (secret) {
+    const valid = verifyMercadoPagoSignature({
+      secret,
+      xSignature: req.headers.get('x-signature'),
+      xRequestId: req.headers.get('x-request-id'),
+      dataId: req.nextUrl.searchParams.get('data.id') ?? preApprovalId ?? null,
+    })
+    if (!valid) return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+  }
+
   if (body.type !== 'subscription_preapproval') {
     return NextResponse.json({ status: 'ignored' })
   }
 
   const notificationId = String(body.id ?? '')
-  const preApprovalId = (body.data as Record<string, string>)?.id
 
   if (!notificationId || !preApprovalId) {
     return NextResponse.json({ error: 'Missing id' }, { status: 400 })
@@ -45,6 +62,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Fetch current subscription state from MP
+  const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN! })
   const preApproval = new PreApproval(client)
   let subscription: Awaited<ReturnType<typeof preApproval.get>>
 
@@ -62,15 +80,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No external_reference on subscription' }, { status: 400 })
   }
 
-  // Update profile
-  await supabaseAdmin
+  // Keep the previous period end when MP omits it (e.g. on cancellation) so a paid period stays usable
+  const nextPayment = subscription.next_payment_date
+  const { error: updateError } = await supabaseAdmin
     .from('profiles')
     .update({
       subscription_id: preApprovalId,
       subscription_status: internalStatus,
-      current_period_end: subscription.next_payment_date ?? null,
+      ...(nextPayment && internalStatus !== 'cancelled' ? { current_period_end: nextPayment } : {}),
     })
     .eq('id', userId)
+
+  if (updateError) {
+    console.error('payment webhook: profile update failed', updateError.message)
+    return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 })
+  }
 
   // Record event for idempotency
   await supabaseAdmin

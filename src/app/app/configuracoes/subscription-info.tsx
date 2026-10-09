@@ -6,9 +6,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cancelSubscription } from './actions'
 
-type Status = 'trial' | 'active' | 'past_due' | 'paused' | 'cancelled'
+export type SubscriptionStatus = 'trial' | 'active' | 'past_due' | 'paused' | 'cancelled'
 
-const STATUS_LABEL: Record<Status, string> = {
+const STATUS_LABEL: Record<SubscriptionStatus, string> = {
   trial:      'Período de avaliação',
   active:     'Plano Básico',
   past_due:   'Pagamento pendente',
@@ -16,7 +16,7 @@ const STATUS_LABEL: Record<Status, string> = {
   cancelled:  'Assinatura cancelada',
 }
 
-const STATUS_CLASSES: Record<Status, string> = {
+const STATUS_CLASSES: Record<SubscriptionStatus, string> = {
   trial:      'text-cyan-400 border-cyan-400/30 bg-cyan-400/10',
   active:     'text-emerald-400 border-emerald-400/30 bg-emerald-400/10',
   past_due:   'text-amber-400 border-amber-400/30 bg-amber-400/10',
@@ -30,7 +30,7 @@ function formatDate(iso: string | null) {
 }
 
 type Props = {
-  status: Status
+  status: SubscriptionStatus
   trialEndsAt: string | null
   currentPeriodEnd: string | null
   hasSubscriptionId: boolean

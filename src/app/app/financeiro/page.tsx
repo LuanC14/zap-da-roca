@@ -1,5 +1,5 @@
-import { supabaseAdmin } from '@/lib/supabase'
-import { formatBrazilian } from '@/lib/parsers/date-parser'
+import { createClient } from '@/lib/supabase/server'
+import { formatBrazilian, parseYearMonth } from '@/lib/parsers/date-parser'
 import { formatCurrency } from '@/lib/format'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -14,7 +14,8 @@ export default async function FinanceiroPage({
   const type = params.type ?? ''
   const month = params.month ?? ''
 
-  let query = supabaseAdmin
+  const supabase = await createClient()
+  let query = supabase
     .from('transactions')
     .select('id, type, amount, description, transaction_date, paid, paid_at, categories(name)')
     .order('transaction_date', { ascending: false })
@@ -23,8 +24,9 @@ export default async function FinanceiroPage({
   if (type === 'expense' || type === 'income') {
     query = query.eq('type', type)
   }
-  if (month) {
-    query = query.gte('transaction_date', `${month}-01`).lte('transaction_date', `${month}-31`)
+  const range = parseYearMonth(month)
+  if (range) {
+    query = query.gte('transaction_date', range.start).lte('transaction_date', range.end)
   }
 
   const { data } = await query

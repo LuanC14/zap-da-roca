@@ -1,4 +1,5 @@
 import { parseBrazilianDate, todayISO } from './date-parser'
+import { normalizeText, parseAmount, parseHours } from './text'
 
 export type CommandName =
   | 'pagar'
@@ -30,129 +31,112 @@ export interface ParsedCommand {
   period?: string
 }
 
-function normalizeText(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim()
-}
-
-export function parseCommand(text: string): ParsedCommand {
+export function parseCommand(text: string, now: Date = new Date()): ParsedCommand {
   const raw = text.trim()
-  const normalized = normalizeText(raw)
 
-  if (!normalized.startsWith('!')) {
+  if (!raw.startsWith('!')) {
     return { command: 'unknown', raw }
   }
 
-  const parts = normalized.replace(/^!/, '').split(/\s+/)
+  // `rawParts` keeps the user's casing/accents (for stored text); `parts` is for matching
+  const rawParts = raw.slice(1).split(/\s+/).filter(Boolean)
+  const parts = rawParts.map(normalizeText)
   const cmd = parts[0]
+  const today = todayISO(now)
 
-  // !ajuda
-  if (cmd === 'ajuda' || cmd === 'help') {
-    return { command: 'ajuda', raw }
-  }
+  switch (cmd) {
+    case 'ajuda':
+    case 'help':
+      return { command: 'ajuda', raw }
 
-  // !funcionarios
-  if (cmd === 'funcionarios') {
-    return { command: 'funcionarios', raw }
-  }
+    case 'funcionarios':
+      return { command: 'funcionarios', raw }
 
-  // !saldo
-  if (cmd === 'saldo') {
-    return { command: 'saldo', raw }
-  }
+    case 'saldo':
+      return { command: 'saldo', raw }
 
-  // !pago <id>
-  if (cmd === 'pago') {
-    const id = parseInt(parts[1])
-    return { command: 'pago', raw, transactionId: isNaN(id) ? undefined : id }
-  }
-
-  // !relatorio [mes/ano]
-  if (cmd === 'relatorio') {
-    return { command: 'relatorio', raw, period: parts[1] }
-  }
-
-  // !mao_obra [periodo]
-  if (cmd === 'mao_obra' || cmd === 'mao-obra' || cmd === 'maodeobra') {
-    return { command: 'mao_obra', raw, period: parts[1] }
-  }
-
-  // !ponto <nome> [data]
-  if (cmd === 'ponto') {
-    const nameParts: string[] = []
-    let date: string | undefined
-    for (let i = 1; i < parts.length; i++) {
-      const parsed = parseBrazilianDate(parts[i])
-      if (parsed) { date = parsed; break }
-      nameParts.push(parts[i])
+    case 'pago': {
+      const token = parts[1]?.replace(/^#/, '')
+      const id = token && /^\d+$/.test(token) ? parseInt(token, 10) : undefined
+      return { command: 'pago', raw, transactionId: id }
     }
-    return {
-      command: 'ponto',
-      raw,
-      employeeName: nameParts.join(' ') || undefined,
-      date: date ?? todayISO(),
-    }
-  }
 
-  // !extra <nome> <horas> [data]
-  if (cmd === 'extra') {
-    const nameParts: string[] = []
-    let hours: number | undefined
-    let date: string | undefined
-    for (let i = 1; i < parts.length; i++) {
-      const parsed = parseBrazilianDate(parts[i])
-      if (parsed) { date = parsed; continue }
-      const asNum = parseFloat(parts[i])
-      if (!isNaN(asNum) && hours === undefined && nameParts.length > 0) {
-        hours = asNum
-        continue
+    case 'relatorio':
+      return { command: 'relatorio', raw, period: parts[1] }
+
+    case 'mao_obra':
+    case 'mao-obra':
+    case 'maodeobra':
+      return { command: 'mao_obra', raw, period: parts[1] }
+
+    case 'ponto': {
+      const nameParts: string[] = []
+      let date: string | undefined
+      for (let i = 1; i < parts.length; i++) {
+        const parsed = parseBrazilianDate(parts[i], now)
+        if (parsed) { date = parsed; break }
+        nameParts.push(rawParts[i])
       }
-      if (hours === undefined) nameParts.push(parts[i])
-    }
-    return {
-      command: 'extra',
-      raw,
-      employeeName: nameParts.join(' ') || undefined,
-      hours,
-      date: date ?? todayISO(),
-    }
-  }
-
-  // !pagar / !receber  <valor> <categoria> <descricao...> [data]
-  if (cmd === 'pagar' || cmd === 'receber') {
-    const command: CommandName = cmd === 'pagar' ? 'pagar' : 'receber'
-
-    // First token after command = valor
-    const amount = parseFloat(parts[1]?.replace(',', '.') ?? '')
-    if (isNaN(amount)) return { command, raw }
-
-    // Second token = categoria
-    const categoryKeyword = parts[2]
-
-    // Remaining tokens = description + optional date at end
-    const rest = parts.slice(3)
-    let date: string | undefined
-    if (rest.length > 0) {
-      const lastParsed = parseBrazilianDate(rest[rest.length - 1])
-      if (lastParsed) {
-        date = lastParsed
-        rest.pop()
+      return {
+        command: 'ponto',
+        raw,
+        employeeName: nameParts.join(' ') || undefined,
+        date: date ?? today,
       }
     }
-    const description = rest.join(' ') || undefined
 
-    return {
-      command,
-      raw,
-      amount,
-      categoryKeyword,
-      description,
-      date: date ?? todayISO(),
+    case 'extra': {
+      const nameParts: string[] = []
+      let hours: number | undefined
+      let date: string | undefined
+      for (let i = 1; i < parts.length; i++) {
+        const parsedDate = parseBrazilianDate(parts[i], now)
+        if (parsedDate) { date = parsedDate; continue }
+        if (hours === undefined && nameParts.length > 0) {
+          const h = parseHours(parts[i])
+          if (h !== null) { hours = h; continue }
+        }
+        if (hours === undefined) nameParts.push(rawParts[i])
+      }
+      return {
+        command: 'extra',
+        raw,
+        employeeName: nameParts.join(' ') || undefined,
+        hours,
+        date: date ?? today,
+      }
     }
-  }
 
-  return { command: 'unknown', raw }
+    case 'pagar':
+    case 'receber': {
+      const command: CommandName = cmd
+
+      const amount = parts[1] !== undefined ? parseAmount(parts[1]) : null
+      if (amount === null) return { command, raw }
+
+      const categoryKeyword = parts[2]
+
+      const rest = rawParts.slice(3)
+      let date: string | undefined
+      if (rest.length > 0) {
+        const lastParsed = parseBrazilianDate(rest[rest.length - 1], now)
+        if (lastParsed) {
+          date = lastParsed
+          rest.pop()
+        }
+      }
+
+      return {
+        command,
+        raw,
+        amount,
+        categoryKeyword,
+        description: rest.join(' ') || undefined,
+        date: date ?? today,
+      }
+    }
+
+    default:
+      return { command: 'unknown', raw }
+  }
 }

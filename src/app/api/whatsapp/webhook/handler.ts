@@ -1,7 +1,9 @@
 import { ParsedCommand } from '@/lib/parsers/command-parser'
 import { supabaseAdmin } from '@/lib/supabase'
 import { formatBrazilian, currentMonthRange, parseMonthPeriod } from '@/lib/parsers/date-parser'
+import { matchCategory, matchEmployee, type CategoryRow } from '@/lib/parsers/match'
 import { formatCurrency } from '@/lib/format'
+import { hasAccess } from '@/lib/access'
 
 const AJUDA = `🌾 *ZapRural — Comandos disponíveis*
 
@@ -23,23 +25,37 @@ const AJUDA = `🌾 *ZapRural — Comandos disponíveis*
 
 Dúvidas? Fale com o suporte.`
 
+const NOT_LINKED =
+  '❌ Número não cadastrado. Acesse o portal Zap da Roça e vincule seu WhatsApp nas configurações.'
+const NO_ACCESS =
+  '🔒 Seu período de acesso terminou. Assine em zapdaroca.com.br para continuar usando o Zap da Roça.'
+
 export async function handleCommand(
   cmd: ParsedCommand,
   from: string,
   messageId: string
 ): Promise<string> {
-  const { data: phone } = await supabaseAdmin
+  const { data: phone, error: phoneError } = await supabaseAdmin
     .from('registered_phones')
     .select('user_id')
     .eq('whatsapp_number', from)
     .eq('verified', true)
     .maybeSingle()
 
-  if (!phone?.user_id) {
-    return '❌ Número não cadastrado. Acesse o portal Zap da Roça e vincule seu WhatsApp nas configurações.'
-  }
+  // A database failure must not be reported to the user as "number not registered"
+  if (phoneError) throw phoneError
+  if (!phone?.user_id) return NOT_LINKED
 
   const userId = phone.user_id
+
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .select('subscription_status, trial_ends_at, current_period_end, is_admin')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (profileError) throw profileError
+  if (!hasAccess(profile)) return NO_ACCESS
 
   switch (cmd.command) {
     case 'ajuda':
@@ -76,6 +92,9 @@ export async function handleCommand(
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+type NamedEmbed = { name: string } | null
+const embedName = (embed: unknown) => (embed as NamedEmbed)?.name
 
 async function handleFuncionarios(userId: string): Promise<string> {
   const { data, error } = await supabaseAdmin
@@ -143,22 +162,17 @@ async function handleRelatorio(userId: string, period?: string): Promise<string>
   const income = data.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const expenses = data.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
 
-  const expenseLines = data
-    .filter((t) => t.type === 'expense')
-    .slice(0, 10)
-    .map((t) => `  • ${t.description ?? (t.categories as unknown as { name: string })?.name} — ${formatCurrency(t.amount)}`)
-    .join('\n')
-
-  const incomeLines = data
-    .filter((t) => t.type === 'income')
-    .slice(0, 10)
-    .map((t) => `  • ${t.description ?? (t.categories as unknown as { name: string })?.name} — ${formatCurrency(t.amount)}`)
-    .join('\n')
+  const toLines = (type: 'expense' | 'income') =>
+    data
+      .filter((t) => t.type === type)
+      .slice(0, 10)
+      .map((t) => `  • ${t.description ?? embedName(t.categories)} — ${formatCurrency(t.amount)}`)
+      .join('\n')
 
   return (
     `📋 *Relatório: ${formatBrazilian(start)} a ${formatBrazilian(end)}*\n\n` +
-    `💚 *Receitas: ${formatCurrency(income)}*\n${incomeLines || '  (nenhuma)'}\n\n` +
-    `🔴 *Despesas: ${formatCurrency(expenses)}*\n${expenseLines || '  (nenhuma)'}\n\n` +
+    `💚 *Receitas: ${formatCurrency(income)}*\n${toLines('income') || '  (nenhuma)'}\n\n` +
+    `🔴 *Despesas: ${formatCurrency(expenses)}*\n${toLines('expense') || '  (nenhuma)'}\n\n` +
     `Saldo: *${formatCurrency(income - expenses)}*`
   )
 }
@@ -166,17 +180,25 @@ async function handleRelatorio(userId: string, period?: string): Promise<string>
 async function handlePago(userId: string, id?: number): Promise<string> {
   if (!id) return '❌ Informe o ID do lançamento. Ex: !pago 42'
 
-  const { data, error } = await supabaseAdmin
+  const { data: tx } = await supabaseAdmin
+    .from('transactions')
+    .select('id, amount, description, paid')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (!tx) return `❌ Lançamento #${id} não encontrado.`
+  if (tx.paid) return `ℹ️ Lançamento #${id} já estava quitado.`
+
+  const { error } = await supabaseAdmin
     .from('transactions')
     .update({ paid: true, paid_at: new Date().toISOString() })
     .eq('id', id)
     .eq('user_id', userId)
-    .select('amount, description, type')
-    .single()
 
-  if (error || !data) return `❌ Lançamento #${id} não encontrado.`
+  if (error) throw error
 
-  return `✅ Lançamento #${id} quitado!\n${data.description} — ${formatCurrency(data.amount)}`
+  return `✅ Lançamento #${id} quitado!\n${tx.description} — ${formatCurrency(tx.amount)}`
 }
 
 async function handleTransaction(userId: string, cmd: ParsedCommand, messageId: string): Promise<string> {
@@ -184,21 +206,19 @@ async function handleTransaction(userId: string, cmd: ParsedCommand, messageId: 
     const example = cmd.command === 'pagar'
       ? '!pagar 350 combustivel abastecimento trator'
       : '!receber 8000 safra venda do milho'
-    return `❌ Formato inválido. Exemplo:\n${example}`
+    return `❌ Formato inválido (valor deve ser maior que zero). Exemplo:\n${example}`
   }
 
-  // Global categories (user_id IS NULL) + own categories
+  const type = cmd.command === 'pagar' ? 'expense' : 'income'
+
+  // Global categories (user_id IS NULL) + the tenant's own
   const { data: cats } = await supabaseAdmin
     .from('categories')
-    .select('id, name')
-    .ilike('name', `%${cmd.categoryKeyword}%`)
+    .select('id, name, type, user_id')
     .or(`user_id.eq.${userId},user_id.is.null`)
-    .limit(1)
 
-  const categoryId = cats?.[0]?.id ?? null
-  const categoryName = cats?.[0]?.name ?? cmd.categoryKeyword
-
-  const type = cmd.command === 'pagar' ? 'expense' : 'income'
+  const category = matchCategory((cats ?? []) as CategoryRow[], cmd.categoryKeyword, type)
+  const label = category?.name ?? cmd.categoryKeyword
 
   const { data, error } = await supabaseAdmin
     .from('transactions')
@@ -206,8 +226,8 @@ async function handleTransaction(userId: string, cmd: ParsedCommand, messageId: 
       user_id: userId,
       type,
       amount: cmd.amount,
-      category_id: categoryId,
-      description: cmd.description ?? categoryName,
+      category_id: category?.id ?? null,
+      description: cmd.description ?? label,
       transaction_date: cmd.date,
       paid: false,
       whatsapp_message_id: messageId,
@@ -223,37 +243,73 @@ async function handleTransaction(userId: string, cmd: ParsedCommand, messageId: 
   return (
     `${emoji} *${verb} registrada! (ID: #${data.id})*\n` +
     `Valor: ${formatCurrency(cmd.amount)}\n` +
-    `Categoria: ${categoryName}\n` +
+    `Categoria: ${category ? category.name : `${cmd.categoryKeyword} (sem categoria)`}\n` +
     (cmd.description ? `Descrição: ${cmd.description}\n` : '') +
     `Data: ${formatBrazilian(cmd.date!)}`
   )
 }
 
+async function findEmployee<T extends { id: string; name: string }>(
+  userId: string,
+  query: string,
+  columns: string
+): Promise<{ employee: T } | { reply: string }> {
+  const { data } = await supabaseAdmin
+    .from('employees')
+    .select(columns)
+    .eq('user_id', userId)
+    .eq('active', true)
+
+  const match = matchEmployee((data ?? []) as unknown as T[], query)
+  if (match.status === 'found') return { employee: match.employee }
+  if (match.status === 'ambiguous') {
+    return { reply: `⚠️ Mais de um funcionário corresponde a "${query}": ${match.names.join(', ')}. Informe o nome completo.` }
+  }
+  return { reply: `❌ Funcionário "${query}" não encontrado.` }
+}
+
 async function handlePonto(userId: string, cmd: ParsedCommand): Promise<string> {
   if (!cmd.employeeName) return '❌ Informe o nome do funcionário. Ex: !ponto João'
 
-  const { data: employees } = await supabaseAdmin
-    .from('employees')
-    .select('id, name, daily_rate')
+  const found = await findEmployee<{ id: string; name: string; daily_rate: number }>(
+    userId, cmd.employeeName, 'id, name, daily_rate'
+  )
+  if ('reply' in found) return found.reply
+  const { employee } = found
+
+  const { data: existing } = await supabaseAdmin
+    .from('work_records')
+    .select('id, daily_rate_snapshot')
     .eq('user_id', userId)
-    .ilike('name', `%${cmd.employeeName}%`)
-    .eq('active', true)
-    .limit(1)
+    .eq('employee_id', employee.id)
+    .eq('work_date', cmd.date)
 
-  const employee = employees?.[0]
-  if (!employee) return `❌ Funcionário "${cmd.employeeName}" não encontrado.`
+  const dayRecord = existing?.[0]
 
-  const { error } = await supabaseAdmin.from('work_records').insert({
-    user_id: userId,
-    employee_id: employee.id,
-    work_date: cmd.date,
-    regular_hours: 8,
-    overtime_hours: 0,
-    daily_rate_snapshot: employee.daily_rate,
-    overtime_rate_snapshot: 0,
-  })
+  if (existing?.some((r) => r.daily_rate_snapshot > 0)) {
+    return `ℹ️ Ponto de ${employee.name} em ${formatBrazilian(cmd.date!)} já está registrado.`
+  }
 
-  if (error) throw error
+  if (dayRecord) {
+    // Day already has an overtime-only record: add the daily rate to it
+    const { error } = await supabaseAdmin
+      .from('work_records')
+      .update({ regular_hours: 8, daily_rate_snapshot: employee.daily_rate })
+      .eq('id', dayRecord.id)
+      .eq('user_id', userId)
+    if (error) throw error
+  } else {
+    const { error } = await supabaseAdmin.from('work_records').insert({
+      user_id: userId,
+      employee_id: employee.id,
+      work_date: cmd.date,
+      regular_hours: 8,
+      overtime_hours: 0,
+      daily_rate_snapshot: employee.daily_rate,
+      overtime_rate_snapshot: 0,
+    })
+    if (error) throw error
+  }
 
   return (
     `✅ *Ponto registrado!*\n` +
@@ -265,19 +321,14 @@ async function handlePonto(userId: string, cmd: ParsedCommand): Promise<string> 
 
 async function handleExtra(userId: string, cmd: ParsedCommand): Promise<string> {
   if (!cmd.employeeName || !cmd.hours) {
-    return '❌ Formato inválido. Ex: !extra João 2'
+    return '❌ Formato inválido. Ex: !extra João 2 (horas entre 0 e 24)'
   }
 
-  const { data: employees } = await supabaseAdmin
-    .from('employees')
-    .select('id, name, overtime_rate')
-    .eq('user_id', userId)
-    .ilike('name', `%${cmd.employeeName}%`)
-    .eq('active', true)
-    .limit(1)
-
-  const employee = employees?.[0]
-  if (!employee) return `❌ Funcionário "${cmd.employeeName}" não encontrado.`
+  const found = await findEmployee<{ id: string; name: string; overtime_rate: number }>(
+    userId, cmd.employeeName, 'id, name, overtime_rate'
+  )
+  if ('reply' in found) return found.reply
+  const { employee } = found
 
   const { data: existing } = await supabaseAdmin
     .from('work_records')
@@ -285,19 +336,21 @@ async function handleExtra(userId: string, cmd: ParsedCommand): Promise<string> 
     .eq('user_id', userId)
     .eq('employee_id', employee.id)
     .eq('work_date', cmd.date)
-    .maybeSingle()
 
-  if (existing) {
-    await supabaseAdmin
+  const dayRecord = existing?.[0]
+
+  if (dayRecord) {
+    const { error } = await supabaseAdmin
       .from('work_records')
       .update({
-        overtime_hours: (existing.overtime_hours ?? 0) + cmd.hours,
+        overtime_hours: (dayRecord.overtime_hours ?? 0) + cmd.hours,
         overtime_rate_snapshot: employee.overtime_rate,
       })
-      .eq('id', existing.id)
+      .eq('id', dayRecord.id)
       .eq('user_id', userId)
+    if (error) throw error
   } else {
-    await supabaseAdmin.from('work_records').insert({
+    const { error } = await supabaseAdmin.from('work_records').insert({
       user_id: userId,
       employee_id: employee.id,
       work_date: cmd.date,
@@ -306,6 +359,7 @@ async function handleExtra(userId: string, cmd: ParsedCommand): Promise<string> 
       daily_rate_snapshot: 0,
       overtime_rate_snapshot: employee.overtime_rate,
     })
+    if (error) throw error
   }
 
   const totalExtra = cmd.hours * employee.overtime_rate
@@ -342,7 +396,7 @@ async function handleMaoObra(userId: string, period?: string): Promise<string> {
   let total = 0
 
   for (const r of data) {
-    const name = (r.employees as unknown as { name: string })?.name ?? 'Desconhecido'
+    const name = embedName(r.employees) ?? 'Desconhecido'
     if (!byEmployee[name]) byEmployee[name] = { name, days: 0, extraCost: 0 }
     if (r.daily_rate_snapshot > 0) byEmployee[name].days += 1
     const extra = r.overtime_hours * r.overtime_rate_snapshot

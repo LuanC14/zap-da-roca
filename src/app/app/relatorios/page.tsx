@@ -1,5 +1,5 @@
-import { supabaseAdmin } from '@/lib/supabase'
-import { currentMonthRange, formatBrazilian } from '@/lib/parsers/date-parser'
+import { createClient } from '@/lib/supabase/server'
+import { currentMonthRange, formatBrazilian, isISODate } from '@/lib/parsers/date-parser'
 import { formatCurrency } from '@/lib/format'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -11,16 +11,17 @@ export default async function RelatoriosPage({
 }) {
   const params = await searchParams
   const range = currentMonthRange()
-  const start = params.start ?? range.start
-  const end = params.end ?? range.end
+  const start = isISODate(params.start) ? params.start : range.start
+  const end = isISODate(params.end) ? params.end : range.end
+  const supabase = await createClient()
 
   const [{ data: transactions }, { data: workRecords }] = await Promise.all([
-    supabaseAdmin
+    supabase
       .from('transactions')
       .select('type, amount, categories(name)')
       .gte('transaction_date', start)
       .lte('transaction_date', end),
-    supabaseAdmin
+    supabase
       .from('work_records')
       .select('daily_rate_snapshot, overtime_hours, overtime_rate_snapshot, employees(name)')
       .gte('work_date', start)

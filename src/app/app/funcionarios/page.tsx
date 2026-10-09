@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/server'
 import { formatBrazilian } from '@/lib/parsers/date-parser'
 import { formatCurrency } from '@/lib/format'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 export default async function FuncionariosPage() {
-  const { data: employees } = await supabaseAdmin
+  const supabase = await createClient()
+  const { data: employees } = await supabase
     .from('employees')
     .select('*')
     .order('name')

@@ -2,10 +2,13 @@
 
 import { redirect } from 'next/navigation'
 import { MercadoPagoConfig, PreApproval } from 'mercadopago'
+import { createClient } from '@/lib/supabase/server'
 
-export async function createSubscription(formData: FormData) {
-  const userId = formData.get('user_id') as string
-  const email = formData.get('email') as string
+export async function createSubscription() {
+  // Identity comes from the session, never from form fields (server actions are public endpoints)
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user?.email) redirect('/entrar')
 
   const client = new MercadoPagoConfig({
     accessToken: process.env.MP_ACCESS_TOKEN!,
@@ -18,8 +21,8 @@ export async function createSubscription(formData: FormData) {
   const sub = await preApproval.create({
     body: {
       reason: 'Zap da Roça — Assinatura Mensal',
-      external_reference: userId,
-      payer_email: process.env.MP_TEST_PAYER_EMAIL ?? email,
+      external_reference: user.id,
+      payer_email: process.env.MP_TEST_PAYER_EMAIL ?? user.email,
       auto_recurring: {
         frequency: 1,
         frequency_type: 'months',

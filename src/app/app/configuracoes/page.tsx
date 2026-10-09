@@ -1,10 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
-import { supabaseAdmin } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { LogoutButton } from '@/components/logout-button'
-import { SubscriptionInfo } from './subscription-info'
+import { SubscriptionInfo, type SubscriptionStatus } from './subscription-info'
 import { WhatsAppLinkForm } from './whatsapp-link-form'
 
 export default async function ConfiguracoesPage() {
@@ -17,12 +16,12 @@ export default async function ConfiguracoesPage() {
       .select('full_name, subscription_status, trial_ends_at, current_period_end, subscription_id')
       .eq('id', user!.id)
       .single(),
-    supabaseAdmin
+    supabase
       .from('categories')
       .select('*')
       .order('type')
       .order('name'),
-    supabaseAdmin
+    supabase
       .from('registered_phones')
       .select('whatsapp_number')
       .eq('user_id', user!.id)
@@ -58,7 +57,7 @@ export default async function ConfiguracoesPage() {
           <div className="pb-4 border-b border-border">
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Assinatura</p>
             <SubscriptionInfo
-              status={(profile?.subscription_status ?? 'trial') as any}
+              status={(profile?.subscription_status ?? 'trial') as SubscriptionStatus}
               trialEndsAt={profile?.trial_ends_at ?? null}
               currentPeriodEnd={profile?.current_period_end ?? null}
               hasSubscriptionId={!!profile?.subscription_id}

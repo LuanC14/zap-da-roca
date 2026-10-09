@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/server'
 import { currentMonthRange, formatBrazilian, todayISO } from '@/lib/parsers/date-parser'
 import { formatCurrency } from '@/lib/format'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -6,21 +6,22 @@ import { Badge } from '@/components/ui/badge'
 import { TrendingUp, TrendingDown, Wallet, HardHat, AlertCircle, type LucideIcon } from 'lucide-react'
 
 async function getKPIs() {
+  const supabase = await createClient()
   const { start, end } = currentMonthRange()
   const today = todayISO()
 
   const [{ data: transactions }, { data: workRecords }, { data: pending }] = await Promise.all([
-    supabaseAdmin
+    supabase
       .from('transactions')
       .select('type, amount')
       .gte('transaction_date', start)
       .lte('transaction_date', end),
-    supabaseAdmin
+    supabase
       .from('work_records')
       .select('daily_rate_snapshot, overtime_hours, overtime_rate_snapshot')
       .gte('work_date', start)
       .lte('work_date', end),
-    supabaseAdmin
+    supabase
       .from('transactions')
       .select('id, description, amount, categories(name)')
       .eq('transaction_date', today)
@@ -46,7 +47,8 @@ async function getKPIs() {
 }
 
 async function getRecentTransactions() {
-  const { data } = await supabaseAdmin
+  const supabase = await createClient()
+  const { data } = await supabase
     .from('transactions')
     .select('id, type, amount, description, transaction_date, paid, categories(name)')
     .order('created_at', { ascending: false })

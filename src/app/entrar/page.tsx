@@ -1,8 +1,19 @@
 'use client'
 
-import { useActionState } from 'react'
+import { Suspense, useActionState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { login } from './actions'
+
+function LinkError() {
+  const params = useSearchParams()
+  if (params.get('erro') !== 'link') return null
+  return (
+    <p role="alert" className="mb-4 rounded-md border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-sm text-rose-400">
+      Link de confirmação inválido ou expirado. Entre com seu e-mail e senha — se o e-mail ainda não foi confirmado, reenviaremos o link.
+    </p>
+  )
+}
 
 export default function EntrarPage() {
   const [state, action, pending] = useActionState(login, undefined)
@@ -20,6 +31,10 @@ export default function EntrarPage() {
           <h1 className="font-heading text-2xl font-bold text-foreground">Entrar na conta</h1>
           <p className="text-sm text-muted-foreground mt-1">Acesse o painel da sua fazenda</p>
         </div>
+
+        <Suspense fallback={null}>
+          <LinkError />
+        </Suspense>
 
         <form action={action} className="space-y-4">
           <div>
