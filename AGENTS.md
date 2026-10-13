@@ -99,6 +99,8 @@ O harness pode bloquear mutações de produção (deploy, escrita em cofre de se
 
 ## Status (atualizado em 2026-10-12)
 
+**Verificado pelo dono em produção (2026-10-12):** cadastro de conta nova com e-mail de confirmação e recuperação de senha do admin, no domínio https://zapdaroca.com.br.
+
 **Pronto:** recuperação de senha (`/esqueci-senha` → e-mail → `/auth/callback?next=/redefinir-senha` → `/redefinir-senha`) · isolamento de tenant e hardening de RLS/billing (em produção, `rls:check` 20/20) · fail-closed em cron/webhooks · OTP com limites · bot corrigido
 (valores pt-BR, acentos, fuso, deduplicação) · cadastro de funcionários e categorias · financeiro com totais corretos e filtros · CI com gate + pgTAP verde ·
 smoke e provisionamento · domínio canônico apex · SMTP do Supabase via Resend (domínio verificado) · envio por template pronto (ativa por variável).
