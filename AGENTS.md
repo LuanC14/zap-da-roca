@@ -26,6 +26,7 @@ Produção: Vercel (`zap-da-roca`, domínio canônico `https://zapdaroca.com.br`
 | `npm run db:start` / `db:reset` | Supabase local (precisa de Docker Desktop ligado) |
 | `npm run smoke` | Verificação **somente leitura** da produção (15 checagens) |
 | `npm run rls:check` | Isolamento entre tenants contra um Supabase real (cria e apaga 2 usuários temporários) |
+| `npm run whatsapp:check` | Verificação somente leitura da conta WhatsApp Business na Meta |
 | `npm run provision` | Provisionamento (Vercel env, domínio, Supabase Auth). **Simulação por padrão**; `-- --apply` executa |
 | `node scripts/test-bot.js "!saldo"` | Envia um comando ao webhook local (dev) |
 
@@ -86,16 +87,25 @@ O harness pode bloquear mutações de produção (deploy, escrita em cofre de se
 3. Redeploy (`npm run provision -- --apply --only=redeploy`) e `npm run smoke` (o webhook deixa de responder 503 e passa a 401 sem assinatura).
 4. Teste real: assinar com valor mínimo, ver `subscription_status = active` em `profiles`, cancelar em Configurações e conferir o cancelamento no MP.
 
-## Go-live — WhatsApp Business (pendente: número próprio + templates)
+## Go-live — WhatsApp Business (número Business disponível; falta configurar a Meta)
 
-1. Meta Business verificado, número Business próprio, **token permanente** de usuário do sistema (o temporário expira em ~24 h).
-2. Variáveis na Vercel: `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`.
-3. Webhook na Meta: `https://zapdaroca.com.br/api/whatsapp/webhook`, campo `messages`.
-4. Templates (pt_BR) — mensagens que o app inicia **exigem** template aprovado; respostas a comandos do usuário (janela de 24 h) usam texto livre:
+Ferramentas: `npm run whatsapp:check` (somente leitura: número, nome, templates, assinatura do webhook) e `npm run provision -- --only=whatsapp` (envia as variáveis `WHATSAPP_*` do `.env.deploy` para a Vercel).
+A Vercel já tem valores **do número de teste antigo** (`WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`): precisam ser substituídos.
+
+Ordem (a ordem importa — o webhook só valida depois que a Vercel tem o `WHATSAPP_VERIFY_TOKEN` novo no ar):
+1. **Número**: não pode estar ativo no app WhatsApp/WhatsApp Business do celular (apague a conta lá antes) e precisa receber SMS ou ligação de verificação.
+2. **Meta**: app tipo Business com o produto WhatsApp; adicionar o número em WhatsApp → API Setup e verificar o código; aprovar o nome de exibição.
+3. **Token permanente**: Business Settings → Users → System users → criar usuário admin, atribuir o app e a conta WhatsApp Business, gerar token sem expiração com as permissões
+   `whatsapp_business_messaging` e `whatsapp_business_management`.
+4. Preencher no `.env.deploy`: `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_WABA_ID`, `WHATSAPP_TOKEN`, `WHATSAPP_APP_SECRET` (App settings → Basic). `WHATSAPP_VERIFY_TOKEN` já foi gerado.
+5. `npm run whatsapp:check` (deve reportar número verificado) → `npm run provision -- --apply --only=whatsapp,redeploy` → `npm run smoke`.
+6. **Webhook na Meta**: Callback URL `https://zapdaroca.com.br/api/whatsapp/webhook`, Verify token = `WHATSAPP_VERIFY_TOKEN`, assinar o campo `messages`. Só agora, com a Vercel já atualizada.
+7. Templates (pt_BR) — mensagens que o app inicia **exigem** template aprovado; respostas a comandos do usuário (janela de 24 h) usam texto livre:
    - **Autenticação** `zapdaroca_codigo` (código com botão "copiar código", validade 10 min) → `WHATSAPP_TEMPLATE_OTP=zapdaroca_codigo`.
    - **Utilidade** `zapdaroca_lembrete`: `☀️ Bom dia! Contas para hoje ({{1}}): {{2}}. Total: {{3}}. Responda !pago <id> para quitar.` → `WHATSAPP_TEMPLATE_REMINDER=zapdaroca_lembrete`.
-   - Idioma diferente de pt_BR → `WHATSAPP_TEMPLATE_LANG`. Sem as variáveis de template o app envia texto (serve só para o número de teste).
-5. Teste: vincular o número em Configurações (recebe o código), `!ajuda`, `!pagar 10 diesel teste`, `!saldo`; conferir o lembrete das 08:00 no dia seguinte.
+   - Idioma diferente de pt_BR → `WHATSAPP_TEMPLATE_LANG`. Sem as variáveis de template o app envia texto livre (que a Meta só entrega dentro da janela de 24 h).
+8. Com os templates `APPROVED` (`npm run whatsapp:check`): preencher `WHATSAPP_TEMPLATE_OTP`/`_REMINDER` no `.env.deploy`, `provision --apply --only=whatsapp,redeploy`.
+9. Teste ponta a ponta: vincular o número em Configurações (recebe o código), `!ajuda`, `!pagar 10 diesel teste`, `!saldo`; conferir o lembrete das 08:00 no dia seguinte.
 
 ## Status (atualizado em 2026-10-12)
 

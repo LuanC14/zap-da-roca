@@ -7,7 +7,7 @@
 //   node scripts/provision.mjs --apply --only=vercel-env,domain
 //   node scripts/provision.mjs --apply --smtp       # also point Supabase Auth e-mail at Resend
 //
-// Steps:  vercel-env | supabase-auth | domain | redeploy
+// Steps:  vercel-env | supabase-auth | domain | whatsapp | redeploy
 // Config is read from a gitignored .env.deploy (see .env.deploy.example). Secret values are never printed.
 //
 // NOTE: written against the public Vercel and Supabase Management REST APIs but not run against your accounts
@@ -174,6 +174,37 @@ async function domain() {
   )
 }
 
+// ── WhatsApp Business credentials → Vercel production env ───────────────────
+// Reads WHATSAPP_* from .env.deploy and upserts them. Secrets are never printed.
+const WA_SECRET_KEYS = ['WHATSAPP_TOKEN', 'WHATSAPP_APP_SECRET', 'WHATSAPP_VERIFY_TOKEN']
+const WA_PLAIN_KEYS = ['WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_TEMPLATE_OTP', 'WHATSAPP_TEMPLATE_REMINDER', 'WHATSAPP_TEMPLATE_LANG']
+
+async function whatsapp() {
+  log('\n[whatsapp]')
+  const token = env('VERCEL_TOKEN')
+  if (!token) return log('  skipped: VERCEL_TOKEN not set')
+
+  const { envs = [] } = await api('GET', vercel(`/v10/projects/${VERCEL_PROJECT}/env`), token)
+  const inProd = (key) => envs.some((e) => e.key === key && (e.target ?? []).includes('production'))
+
+  for (const key of [...WA_SECRET_KEYS, ...WA_PLAIN_KEYS]) {
+    const value = env(key)
+    if (!value) {
+      log(`  ${inProd(key) ? '✓' : '·'} ${key}: ${inProd(key) ? 'already in production (not in .env.deploy, left untouched)' : 'not set anywhere yet'}`)
+      continue
+    }
+    const secret = WA_SECRET_KEYS.includes(key)
+    await mutate(`${inProd(key) ? 'update' : 'create'} ${key} (${secret ? 'encrypted' : 'plain'}, production)`, () =>
+      api('POST', vercel(`/v10/projects/${VERCEL_PROJECT}/env`, 'upsert=true'), token, {
+        key,
+        value,
+        type: secret ? 'encrypted' : 'plain',
+        target: ['production'],
+      })
+    )
+  }
+}
+
 // ── Redeploy so new env vars take effect ─────────────────────────────────────
 async function redeploy() {
   log('\n[redeploy]')
@@ -208,7 +239,7 @@ async function redeploy() {
 
 log(`Provision → ${SITE_URL}   (${APPLY ? 'APPLY' : 'dry-run: pass --apply to execute'})`)
 
-for (const [name, fn] of [['vercel-env', vercelEnv], ['supabase-auth', supabaseAuth], ['domain', domain], ['redeploy', redeploy]]) {
+for (const [name, fn] of [['vercel-env', vercelEnv], ['supabase-auth', supabaseAuth], ['domain', domain], ['whatsapp', whatsapp], ['redeploy', redeploy]]) {
   if (!wants(name)) continue
   try {
     await fn()
