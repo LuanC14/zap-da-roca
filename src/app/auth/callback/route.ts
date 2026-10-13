@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { safeNext } from '@/lib/redirects'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -16,5 +17,6 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL('/entrar?erro=link', origin))
   }
 
-  return NextResponse.redirect(new URL('/app', origin))
+  // `next` lets the password-reset e-mail land on /redefinir-senha; default is the dashboard
+  return NextResponse.redirect(new URL(safeNext(searchParams.get('next')), origin))
 }

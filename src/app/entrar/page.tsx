@@ -10,7 +10,7 @@ function LinkError() {
   if (params.get('erro') !== 'link') return null
   return (
     <p role="alert" className="mb-4 rounded-md border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-sm text-rose-400">
-      Link de confirmação inválido ou expirado. Entre com seu e-mail e senha — se o e-mail ainda não foi confirmado, reenviaremos o link.
+      Link inválido ou expirado. Entre com seu e-mail e senha — se esqueceu a senha, use &quot;Esqueci minha senha&quot; para receber um novo link.
     </p>
   )
 }
@@ -56,9 +56,14 @@ export default function EntrarPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1.5">
-              Senha
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label htmlFor="password" className="block text-sm font-medium text-foreground">
+                Senha
+              </label>
+              <Link href="/esqueci-senha" className="text-xs text-primary hover:underline">
+                Esqueci minha senha
+              </Link>
+            </div>
             <input
               id="password"
               name="password"

@@ -37,6 +37,19 @@ const checks = [
     expect(!!res.headers.get('referrer-policy'), 'missing Referrer-Policy')
     expect(!res.headers.get('x-powered-by'), 'X-Powered-By is exposed')
   }],
+  ['password recovery page is public and linked from the login page', async () => {
+    const page = await get('/esqueci-senha')
+    expect(page.status === 200, `/esqueci-senha status ${page.status}`)
+    const login = await (await get('/entrar')).text()
+    expect(login.includes('/esqueci-senha'), 'login page has no "Esqueci minha senha" link')
+  }],
+  ['setting a new password requires the recovery session', async () =>
+    redirectsTo(await get('/redefinir-senha'), '/entrar?erro=link')],
+  ['auth callback ignores an external next= target', async () => {
+    const res = await get('/auth/callback?code=invalid&next=https://evil.example')
+    const loc = res.headers.get('location') ?? ''
+    expect(!loc.includes('evil.example'), `redirected to ${loc}`)
+  }],
   ['/app requires login', async () => redirectsTo(await get('/app'), '/entrar')],
   ['/app/financeiro requires login', async () => redirectsTo(await get('/app/financeiro'), '/entrar')],
   ['/assinar requires login', async () => redirectsTo(await get('/assinar'), '/entrar')],

@@ -24,7 +24,7 @@ Produção: Vercel (`zap-da-roca`, domínio canônico `https://zapdaroca.com.br`
 | `npm run typecheck` · `npm run lint` · `npm test` | Gate obrigatório antes de qualquer commit |
 | `npm run build` | Obrigatório quando mexer em páginas, proxy, config ou componentes cliente |
 | `npm run db:start` / `db:reset` | Supabase local (precisa de Docker Desktop ligado) |
-| `npm run smoke` | Verificação **somente leitura** da produção (12 checagens) |
+| `npm run smoke` | Verificação **somente leitura** da produção (15 checagens) |
 | `npm run rls:check` | Isolamento entre tenants contra um Supabase real (cria e apaga 2 usuários temporários) |
 | `npm run provision` | Provisionamento (Vercel env, domínio, Supabase Auth). **Simulação por padrão**; `-- --apply` executa |
 | `node scripts/test-bot.js "!saldo"` | Envia um comando ao webhook local (dev) |
@@ -99,7 +99,7 @@ O harness pode bloquear mutações de produção (deploy, escrita em cofre de se
 
 ## Status (atualizado em 2026-10-12)
 
-**Pronto:** isolamento de tenant e hardening de RLS/billing (em produção, `rls:check` 20/20) · fail-closed em cron/webhooks · OTP com limites · bot corrigido
+**Pronto:** recuperação de senha (`/esqueci-senha` → e-mail → `/auth/callback?next=/redefinir-senha` → `/redefinir-senha`) · isolamento de tenant e hardening de RLS/billing (em produção, `rls:check` 20/20) · fail-closed em cron/webhooks · OTP com limites · bot corrigido
 (valores pt-BR, acentos, fuso, deduplicação) · cadastro de funcionários e categorias · financeiro com totais corretos e filtros · CI com gate + pgTAP verde ·
 smoke e provisionamento · domínio canônico apex · SMTP do Supabase via Resend (domínio verificado) · envio por template pronto (ativa por variável).
 
@@ -117,6 +117,7 @@ trocar a senha do admin e revogar tokens compartilhados no chat.
 | 2026-10-08 | Gate de acesso fora do `proxy.ts`, em `hasAccess()` no layout/bot/cron | Docs do Next: proxy não deve consultar banco; havia duas regras divergentes |
 | 2026-10-12 | Desativar funcionário em vez de excluir | Excluir apagaria o histórico de ponto por cascata |
 | 2026-10-12 | Apex `zapdaroca.com.br` canônico, `www` redireciona (308) | Site URL do Supabase e `NEXT_PUBLIC_APP_URL` já usavam o apex |
+| 2026-10-12 | `/auth/callback` aceita `next` só por allow-list (`safeNext`) | Evita open redirect em links de e-mail; recuperação de senha precisa pousar em `/redefinir-senha` |
 | 2026-10-12 | Mensagens iniciadas pelo app via template (por variável de ambiente) | A Meta só entrega texto livre dentro da janela de 24 h |
 
 ## Armadilhas já encontradas
