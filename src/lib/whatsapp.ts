@@ -3,7 +3,7 @@ import { hmacSha256Hex, safeEqual } from './security'
 const GRAPH_API_VERSION = 'v21.0'
 const BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`
 
-export async function sendWhatsAppMessage(to: string, text: string): Promise<void> {
+async function postMessage(payload: Record<string, unknown>): Promise<void> {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
   const token = process.env.WHATSAPP_TOKEN
   if (!phoneNumberId || !token) throw new Error('WhatsApp credentials are not configured')
@@ -14,18 +14,81 @@ export async function sendWhatsAppMessage(to: string, text: string): Promise<voi
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      to,
-      type: 'text',
-      text: { body: text },
-    }),
+    body: JSON.stringify({ messaging_product: 'whatsapp', ...payload }),
   })
 
   if (!res.ok) {
     const err = await res.text()
     throw new Error(`WhatsApp API error: ${err}`)
   }
+}
+
+// Free-form text: only delivered inside the 24h window opened by the user's own message
+// (i.e. replies to bot commands). Anything the app starts needs a template.
+export async function sendWhatsAppMessage(to: string, text: string): Promise<void> {
+  await postMessage({ to, type: 'text', text: { body: text } })
+}
+
+const templateLanguage = () => process.env.WHATSAPP_TEMPLATE_LANG || 'pt_BR'
+
+export async function sendWhatsAppTemplate(
+  to: string,
+  name: string,
+  bodyParams: string[],
+  options: { language?: string; buttonParam?: string } = {}
+): Promise<void> {
+  const components: Record<string, unknown>[] = [
+    { type: 'body', parameters: bodyParams.map((text) => ({ type: 'text', text })) },
+  ]
+  // Authentication templates carry the code a second time for the "copy code" button
+  if (options.buttonParam !== undefined) {
+    components.push({
+      type: 'button',
+      sub_type: 'url',
+      index: '0',
+      parameters: [{ type: 'text', text: options.buttonParam }],
+    })
+  }
+
+  await postMessage({
+    to,
+    type: 'template',
+    template: { name, language: { code: options.language ?? templateLanguage() }, components },
+  })
+}
+
+// App-initiated: OTP for linking a number. Uses the approved authentication template when
+// WHATSAPP_TEMPLATE_OTP is set, plain text otherwise (Meta test number / local dev).
+export async function sendVerificationCode(to: string, code: string): Promise<void> {
+  const template = process.env.WHATSAPP_TEMPLATE_OTP
+  if (template) {
+    return sendWhatsAppTemplate(to, template, [code], { buttonParam: code })
+  }
+  await sendWhatsAppMessage(
+    to,
+    `🌾 *Zap da Roça* — Código de verificação:\n\n*${code}*\n\nVálido por 10 minutos. Não compartilhe.`
+  )
+}
+
+export interface DailyReminder {
+  date: string // dd/mm/aaaa
+  items: string[] // "#12 Diesel — R$ 120,00"
+  total: string // "R$ 120,00"
+}
+
+// App-initiated: 08:00 bills reminder. Template params may not contain line breaks, so the template
+// receives the items joined on one line.
+export async function sendDailyReminder(to: string, reminder: DailyReminder): Promise<void> {
+  const template = process.env.WHATSAPP_TEMPLATE_REMINDER
+  if (template) {
+    return sendWhatsAppTemplate(to, template, [reminder.date, reminder.items.join(' | '), reminder.total])
+  }
+  await sendWhatsAppMessage(
+    to,
+    `☀️ *Bom dia! Contas para hoje (${reminder.date})*\n\n` +
+      reminder.items.map((i) => `  • ${i}`).join('\n') +
+      `\n\n💰 Total: ${reminder.total}\n\nUse *!pago <id>* para quitar cada lançamento.`
+  )
 }
 
 export function verifyWebhookSignature(body: string, signature: string): boolean {

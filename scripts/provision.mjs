@@ -24,7 +24,7 @@ const SMTP = args.includes('--smtp')
 const only = args.find((a) => a.startsWith('--only='))?.slice(7).split(',')
 const wants = (step) => !only || only.includes(step)
 
-const env = (k, fallback) => process.env[k] ?? fallback
+const env = (k, fallback) => process.env[k] || fallback
 const SITE_URL = env('SITE_URL', 'https://zapdaroca.com.br').replace(/\/$/, '')
 const CANONICAL = new URL(SITE_URL).host
 const OTHER = CANONICAL.startsWith('www.') ? CANONICAL.slice(4) : `www.${CANONICAL}`
@@ -178,11 +178,32 @@ async function domain() {
 async function redeploy() {
   log('\n[redeploy]')
   const hook = env('VERCEL_DEPLOY_HOOK_URL')
-  if (!hook) return log('  skipped: set VERCEL_DEPLOY_HOOK_URL (Vercel → Settings → Git → Deploy Hooks) or redeploy from the dashboard')
-  await mutate('trigger a production deploy via deploy hook', async () => {
-    const res = await fetch(hook, { method: 'POST' })
-    if (!res.ok) throw new Error(`deploy hook → ${res.status}`)
-  })
+  if (hook) {
+    return mutate('trigger a production deploy via deploy hook', async () => {
+      const res = await fetch(hook, { method: 'POST' })
+      if (!res.ok) throw new Error(`deploy hook → ${res.status}`)
+    })
+  }
+
+  // No hook configured: rebuild the latest ready production deployment through the API
+  const token = env('VERCEL_TOKEN')
+  if (!token) return log('  skipped: set VERCEL_DEPLOY_HOOK_URL or VERCEL_TOKEN')
+
+  const { deployments = [] } = await api(
+    'GET',
+    vercel('/v6/deployments', `app=${VERCEL_PROJECT}&target=production&state=READY&limit=1`),
+    token
+  )
+  const latest = deployments[0]
+  if (!latest) return log('  skipped: no ready production deployment found to rebuild')
+
+  await mutate(`rebuild production deployment ${latest.uid} with the current environment variables`, () =>
+    api('POST', vercel('/v13/deployments', 'forceNew=1'), token, {
+      name: VERCEL_PROJECT,
+      deploymentId: latest.uid,
+      target: 'production',
+    })
+  )
 }
 
 log(`Provision → ${SITE_URL}   (${APPLY ? 'APPLY' : 'dry-run: pass --apply to execute'})`)

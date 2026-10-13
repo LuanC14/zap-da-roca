@@ -57,6 +57,17 @@ try {
   const a = await makeTenant('a')
   const b = await makeTenant('b')
 
+  // The hardening migration is applied (code depends on these columns/tables)
+  const probes = [
+    ['phone_verifications', 'user_id, attempts'],
+    ['whatsapp_messages', 'id'],
+    ['profiles', 'is_admin'],
+  ]
+  for (const [table, cols] of probes) {
+    const { error } = await admin.from(table).select(cols).limit(1)
+    check(`migration applied: ${table}(${cols})`, !error, error?.message)
+  }
+
   // Billing columns are server-only (free-subscription exploit)
   for (const [label, patch] of [
     ['subscription_status', { subscription_status: 'active' }],

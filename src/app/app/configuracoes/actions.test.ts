@@ -19,7 +19,7 @@ vi.mock('next/navigation', () => ({
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 const send = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/whatsapp', () => ({ sendWhatsAppMessage: send }))
+vi.mock('@/lib/whatsapp', () => ({ sendVerificationCode: send }))
 vi.mock('mercadopago', () => ({
   MercadoPagoConfig: class {},
   PreApproval: class {
@@ -68,7 +68,7 @@ describe('sendPhoneVerification', () => {
     const row = h.db.tables.phone_verifications[0]
     expect(row).toMatchObject({ phone: NEW_PHONE_E164, user_id: 'user-a' })
     expect(String(row.code)).toMatch(/^\d{6}$/)
-    expect(send).toHaveBeenCalledWith(NEW_PHONE_E164, expect.stringContaining(String(row.code)))
+    expect(send).toHaveBeenCalledWith(NEW_PHONE_E164, String(row.code))
   })
 
   it('refuses a number already linked to someone else (and sends nothing)', async () => {

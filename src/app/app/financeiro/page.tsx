@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
+const LIST_LIMIT = 100
+const QUERY_CAP = 1000 // PostgREST max_rows
+
 export default async function FinanceiroPage({
   searchParams,
 }: {
@@ -19,7 +22,7 @@ export default async function FinanceiroPage({
     .from('transactions')
     .select('id, type, amount, description, transaction_date, paid, paid_at, categories(name)')
     .order('transaction_date', { ascending: false })
-    .limit(100)
+    .limit(QUERY_CAP)
 
   if (type === 'expense' || type === 'income') {
     query = query.eq('type', type)
@@ -31,6 +34,10 @@ export default async function FinanceiroPage({
 
   const { data } = await query
   const transactions = data ?? []
+  const shown = transactions.slice(0, LIST_LIMIT)
+  const capped = transactions.length >= QUERY_CAP
+  const activeMonth = parseYearMonth(month) ? month : ''
+  const activeType = type === 'expense' || type === 'income' ? type : ''
 
   const totalIncome = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const totalExpense = transactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
@@ -44,6 +51,30 @@ export default async function FinanceiroPage({
         <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5">Controle</p>
         <h1 className="text-3xl font-bold font-heading text-foreground">Financeiro</h1>
       </div>
+
+      {/* Filters */}
+      <form method="get" className="flex flex-wrap items-end gap-3">
+        <div>
+          <label htmlFor="filter-month" className="block text-xs text-muted-foreground mb-1">Mês</label>
+          <input id="filter-month" name="month" type="month" defaultValue={activeMonth}
+            className="bg-card border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
+        </div>
+        <div>
+          <label htmlFor="filter-type" className="block text-xs text-muted-foreground mb-1">Tipo</label>
+          <select id="filter-type" name="type" defaultValue={activeType}
+            className="bg-card border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary">
+            <option value="">Todos</option>
+            <option value="expense">Despesas</option>
+            <option value="income">Receitas</option>
+          </select>
+        </div>
+        <button type="submit" className="bg-primary text-primary-foreground text-sm font-medium rounded-md px-4 py-2 hover:bg-primary/90 transition-colors">
+          Filtrar
+        </button>
+        {(activeMonth || activeType) && (
+          <a href="/app/financeiro" className="text-xs text-muted-foreground hover:text-foreground py-2">Limpar</a>
+        )}
+      </form>
 
       {/* Summary tiles */}
       <div className="grid grid-cols-3 gap-4">
@@ -97,7 +128,7 @@ export default async function FinanceiroPage({
                   </TableCell>
                 </TableRow>
               ) : (
-                transactions.map((t) => (
+                shown.map((t) => (
                   <TableRow key={t.id} className="border-border hover:bg-muted/40 transition-colors">
                     <TableCell className="text-muted-foreground text-xs tabular">{t.id}</TableCell>
                     <TableCell className="text-sm tabular">{formatBrazilian(t.transaction_date)}</TableCell>
@@ -127,6 +158,15 @@ export default async function FinanceiroPage({
               )}
             </TableBody>
           </Table>
+          {(transactions.length > LIST_LIMIT || capped) && (
+            <p className="text-xs text-muted-foreground mt-4">
+              {capped
+                ? `Totais calculados sobre os ${QUERY_CAP} lançamentos mais recentes do filtro; `
+                : 'Totais incluem todos os lançamentos do filtro; '}
+              a tabela mostra os {LIST_LIMIT} mais recentes
+              {transactions.length > LIST_LIMIT && !capped ? ` (de ${transactions.length})` : ''}. Use o filtro de mês para ver os demais.
+            </p>
+          )}
         </CardContent>
       </Card>
 

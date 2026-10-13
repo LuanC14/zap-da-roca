@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // Read-only production smoke test: no credentials, no writes.
 //   node scripts/smoke-prod.mjs
-//   BASE_URL=https://www.zapdaroca.com.br RESEND_API_KEY=... RESEND_DOMAIN_ID=... node scripts/smoke-prod.mjs
+//   BASE_URL=https://zapdaroca.com.br RESEND_API_KEY=... RESEND_DOMAIN_ID=... node scripts/smoke-prod.mjs
 // Each check is retried so a run right after a deploy tolerates alias propagation.
 
 import { loadEnvFile } from './lib/env.mjs'
 
 loadEnvFile()
 
-const BASE = (process.env.BASE_URL ?? 'https://www.zapdaroca.com.br').replace(/\/$/, '')
+const BASE = (process.env.BASE_URL ?? process.env.SITE_URL ?? 'https://zapdaroca.com.br').replace(/\/$/, '')
 const RETRIES = Number(process.env.SMOKE_RETRIES ?? 4)
 const DELAY_MS = Number(process.env.SMOKE_DELAY_MS ?? 15000)
 

@@ -6,7 +6,7 @@ import { todayISO } from '@/lib/parsers/date-parser'
 const h = vi.hoisted(() => ({ db: null as unknown as FakeDb }))
 vi.mock('@/lib/supabase', () => ({ supabaseAdmin: { from: (t: string) => h.db.from(t) } }))
 const send = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/whatsapp', () => ({ sendWhatsAppMessage: send }))
+vi.mock('@/lib/whatsapp', () => ({ sendDailyReminder: send }))
 
 import { GET } from './route'
 
@@ -50,8 +50,9 @@ describe('reminders', () => {
     const body = await (await call('Bearer cron-secret')).json()
 
     expect(body.sent).toBe(2)
-    const toA = send.mock.calls.find(([to]) => to === '5511999990001')![1] as string
-    const toB = send.mock.calls.find(([to]) => to === '5511999990002')![1] as string
+    const text = (to: string) => (send.mock.calls.find(([t]) => t === to)![1] as { items: string[] }).items.join(' | ')
+    const toA = text('5511999990001')
+    const toB = text('5511999990002')
     expect(toA).toContain('Diesel A')
     expect(toA).not.toContain('Adubo B')
     expect(toB).toContain('Adubo B')

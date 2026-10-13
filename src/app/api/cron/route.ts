@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { sendDailyReminder, type DailyReminder } from '@/lib/whatsapp'
 import { todayISO, formatBrazilian } from '@/lib/parsers/date-parser'
 import { formatCurrency } from '@/lib/format'
 import { hasAccess } from '@/lib/access'
@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
     const batch = recipients.slice(i, i + CONCURRENCY)
     const results = await Promise.allSettled(
       batch.map(({ user_id, whatsapp_number }) =>
-        sendWhatsAppMessage(whatsapp_number, buildReminder(today, billsByUser.get(user_id)!))
+        sendDailyReminder(whatsapp_number, buildReminder(today, billsByUser.get(user_id)!))
       )
     )
     results.forEach((r, idx) => {
@@ -82,16 +82,12 @@ export async function GET(req: NextRequest) {
 function buildReminder(
   today: string,
   bills: { id: number; description: string | null; amount: number; categories: unknown }[]
-): string {
-  const total = bills.reduce((s, t) => s + t.amount, 0)
-  const lines = bills
-    .map((t) => `  • #${t.id} ${t.description ?? (t.categories as { name: string } | null)?.name} — ${formatCurrency(t.amount)}`)
-    .join('\n')
-
-  return (
-    `☀️ *Bom dia! Contas para hoje (${formatBrazilian(today)})*\n\n` +
-    lines +
-    `\n\n💰 Total: ${formatCurrency(total)}\n\n` +
-    `Use *!pago <id>* para quitar cada lançamento.`
-  )
+): DailyReminder {
+  return {
+    date: formatBrazilian(today),
+    items: bills.map(
+      (t) => `#${t.id} ${t.description ?? (t.categories as { name: string } | null)?.name} — ${formatCurrency(t.amount)}`
+    ),
+    total: formatCurrency(bills.reduce((s, t) => s + t.amount, 0)),
+  }
 }

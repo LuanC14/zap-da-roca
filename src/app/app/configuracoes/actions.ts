@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase'
-import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { sendVerificationCode } from '@/lib/whatsapp'
 import { safeEqual } from '@/lib/security'
 import { requireTenant } from '@/lib/tenant'
 import { matchKey } from '@/lib/parsers/text'
@@ -75,10 +75,7 @@ export async function sendPhoneVerification(
   if (insertError) return { error: 'Não foi possível gerar o código. Tente novamente.' }
 
   try {
-    await sendWhatsAppMessage(
-      phone,
-      `🌾 *Zap da Roça* — Código de verificação:\n\n*${code}*\n\nVálido por 10 minutos. Não compartilhe.`
-    )
+    await sendVerificationCode(phone, code)
   } catch {
     return { error: 'Não foi possível enviar o código. Verifique o número e tente novamente.' }
   }

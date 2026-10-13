@@ -24,7 +24,7 @@ jobs:
       - name: Smoke test
         run: node scripts/smoke-prod.mjs
         env:
-          BASE_URL: ${{ vars.SITE_URL || 'https://www.zapdaroca.com.br' }}
+          BASE_URL: ${{ vars.SITE_URL || 'https://zapdaroca.com.br' }}
           # Optional: enables the "Resend domain is verified" check
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_DOMAIN_ID: ${{ vars.RESEND_DOMAIN_ID }}
