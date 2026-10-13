@@ -1,0 +1,30 @@
+name: Smoke (production)
+
+# Read-only checks against the live site: after every successful production deploy,
+# every 6 hours (catches drift such as a removed env var), and on demand.
+on:
+  deployment_status:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    if: >-
+      github.event_name != 'deployment_status' ||
+      (github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Smoke test
+        run: node scripts/smoke-prod.mjs
+        env:
+          BASE_URL: ${{ vars.SITE_URL || 'https://www.zapdaroca.com.br' }}
+          # Optional: enables the "Resend domain is verified" check
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_DOMAIN_ID: ${{ vars.RESEND_DOMAIN_ID }}

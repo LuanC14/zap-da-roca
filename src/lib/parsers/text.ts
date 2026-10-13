@@ -44,3 +44,10 @@ export function parseHours(input: string): number | null {
   const n = Number(input.trim().replace(',', '.'))
   return n > 0 && n <= 24 ? n : null
 }
+
+// Daily / overtime rate typed in a form (pt-BR). Fits numeric(10,2). Overtime may be zero.
+export function parseRate(input: string, allowZero = false): number | null {
+  if (allowZero && /^0+([.,]0+)?$/.test(input.trim())) return 0
+  const n = parseAmount(input)
+  return n !== null && n <= 99_999_999.99 ? n : null
+}

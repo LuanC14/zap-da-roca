@@ -27,7 +27,7 @@ vi.mock('mercadopago', () => ({
   },
 }))
 
-import { cancelSubscription, sendPhoneVerification, unlinkPhone, verifyPhoneCode } from './actions'
+import { cancelSubscription, createCategory, deleteCategory, sendPhoneVerification, unlinkPhone, verifyPhoneCode } from './actions'
 
 const NEW_PHONE = '(11) 98888-7777'
 const NEW_PHONE_E164 = '5511988887777'
@@ -175,5 +175,41 @@ describe('cancelSubscription', () => {
   it('cancels locally when there is no Mercado Pago subscription yet', async () => {
     expect(await cancelSubscription()).toEqual({})
     expect(h.mpUpdate).not.toHaveBeenCalled()
+  })
+})
+
+describe('custom categories', () => {
+  const cat = (name: string, type = 'expense') => form({ name, type })
+
+  it('creates a category owned by the caller', async () => {
+    expect(await createCategory(cat('  Veterinário  ', 'both'))).toEqual({ ok: true })
+    expect(h.db.tables.categories.at(-1)).toMatchObject({ user_id: 'user-a', name: 'Veterinário', type: 'both' })
+  })
+
+  it('validates name and type', async () => {
+    expect((await createCategory(cat('A'))).error).toContain('nome')
+    expect((await createCategory(cat('Sementes', 'weird'))).error).toContain('tipo')
+  })
+
+  it('rejects names that collide with a global category regardless of accents/spacing', async () => {
+    expect((await createCategory(cat('combustivel / diesel'))).error).toContain('Já existe')
+    expect((await createCategory(cat('MAO DE OBRA'))).error).toContain('Já existe')
+  })
+
+  it('requires an active plan', async () => {
+    h.userId = 'user-expired'
+    await expect(createCategory(cat('Sementes'))).rejects.toThrow('REDIRECT:/assinar')
+  })
+
+  it('deletes only the caller’s own custom categories', async () => {
+    h.userId = 'user-b'
+    expect(await deleteCategory('c6')).toEqual({ ok: true })
+    expect(h.db.tables.categories.some((c) => c.id === 'c6')).toBe(false)
+  })
+
+  it('refuses to delete global categories or other tenants’ ones', async () => {
+    expect((await deleteCategory('c1')).error).toContain('não encontrada')
+    expect((await deleteCategory('c6')).error).toContain('não encontrada') // belongs to user-b
+    expect(h.db.tables.categories).toHaveLength(6)
   })
 })

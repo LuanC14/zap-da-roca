@@ -4,12 +4,14 @@ import { formatCurrency } from '@/lib/format'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { EmployeeActions, EmployeeForm } from './employee-form'
 
 export default async function FuncionariosPage() {
   const supabase = await createClient()
   const { data: employees } = await supabase
     .from('employees')
     .select('*')
+    .order('active', { ascending: false })
     .order('name')
 
   return (
@@ -29,6 +31,20 @@ export default async function FuncionariosPage() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Novo funcionário
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <EmployeeForm />
+          <p className="text-xs text-muted-foreground mt-3">
+            Depois de cadastrar, registre o ponto pelo WhatsApp com <code className="bg-muted px-1.5 py-0.5 rounded text-primary">!ponto nome</code>.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Equipe Cadastrada
           </CardTitle>
         </CardHeader>
@@ -43,13 +59,14 @@ export default async function FuncionariosPage() {
                 <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Horário</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Status</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Cadastro</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {!employees?.length ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
-                    Nenhum funcionário cadastrado. Insira diretamente no Supabase ou via API.
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-10">
+                    Nenhum funcionário cadastrado. Use o formulário acima.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -74,6 +91,17 @@ export default async function FuncionariosPage() {
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground tabular">
                       {formatBrazilian(e.created_at.split('T')[0])}
+                    </TableCell>
+                    <TableCell>
+                      <EmployeeActions
+                        employee={{
+                          id: e.id,
+                          name: e.name,
+                          daily_rate: e.daily_rate,
+                          overtime_rate: e.overtime_rate,
+                          active: e.active,
+                        }}
+                      />
                     </TableCell>
                   </TableRow>
                 ))

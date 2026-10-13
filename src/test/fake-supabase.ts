@@ -33,6 +33,7 @@ export function createFakeDb(seed: Tables = {}) {
     private payload: Row | Row[] = {}
     private cols = '*'
     private head = false
+    private returning = false
     private wantCount = false
     private orderBy: { col: string; asc: boolean } | null = null
     private limitN: number | null = null
@@ -43,6 +44,7 @@ export function createFakeDb(seed: Tables = {}) {
 
     select(cols = '*', opts?: { count?: 'exact'; head?: boolean }) {
       this.cols = cols
+      this.returning = true
       this.head = !!opts?.head
       this.wantCount = !!opts?.count
       return this
@@ -119,6 +121,7 @@ export function createFakeDb(seed: Tables = {}) {
         const full: Row = { ...row }
         if (IDENTITY.has(this.table)) full.id = nextId++
         else if (full.id === undefined && !uniqueCol) full.id = `id-${nextId++}`
+        if (this.table === 'employees') full.active ??= true
         if (this.table === 'phone_verifications') {
           full.attempts ??= 0
           full.used ??= false
@@ -152,7 +155,7 @@ export function createFakeDb(seed: Tables = {}) {
         case 'delete': {
           const rows = matches()
           tables[this.table] = tbl.filter((r) => !rows.includes(r))
-          return { data: null, error: null }
+          return this.returning ? this.shape(rows) : { data: null, error: null }
         }
         default: {
           let rows = matches()

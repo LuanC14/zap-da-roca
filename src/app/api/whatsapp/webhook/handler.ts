@@ -22,6 +22,7 @@ const AJUDA = `🌾 *ZapRural — Comandos disponíveis*
 
 *📅 Datas* no formato DD/MM/AAAA (opcional)
 *Categorias*: combustivel, insumos, maquinario, maodeobra, safra
+(ou parte do nome de uma categoria sua)
 
 Dúvidas? Fale com o suporte.`
 

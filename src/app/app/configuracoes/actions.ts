@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { sendWhatsAppMessage } from '@/lib/whatsapp'
 import { safeEqual } from '@/lib/security'
+import { requireTenant } from '@/lib/tenant'
+import { matchKey } from '@/lib/parsers/text'
 import { MercadoPagoConfig, PreApproval } from 'mercadopago'
 
 const OTP_TTL_MS = 10 * 60 * 1000
@@ -205,4 +207,49 @@ export async function cancelSubscription(): Promise<{ error?: string }> {
 
   revalidatePath('/app/configuracoes')
   return {}
+}
+
+// ── Custom categories ────────────────────────────────────────────────────────
+
+export async function createCategory(formData: FormData): Promise<{ error?: string; ok?: true }> {
+  const { supabase, user } = await requireTenant()
+
+  const name = String(formData.get('name') ?? '').trim().replace(/\s+/g, ' ')
+  const type = String(formData.get('type') ?? '')
+  if (name.length < 2 || name.length > 40) return { error: 'Informe o nome (2 a 40 caracteres).' }
+  if (type !== 'expense' && type !== 'income' && type !== 'both') return { error: 'Escolha o tipo da categoria.' }
+
+  // RLS exposes global + own categories: block names the bot could not tell apart
+  const { data: visible } = await supabase
+    .from('categories')
+    .select('name')
+    .or(`user_id.eq.${user.id},user_id.is.null`)
+  if ((visible ?? []).some((c) => matchKey(c.name) === matchKey(name))) {
+    return { error: 'Já existe uma categoria com esse nome.' }
+  }
+
+  const { error } = await supabase.from('categories').insert({ user_id: user.id, name, type })
+  if (error) return { error: 'Não foi possível criar a categoria. Tente novamente.' }
+
+  revalidatePath('/app/configuracoes')
+  return { ok: true }
+}
+
+export async function deleteCategory(id: string): Promise<{ error?: string; ok?: true }> {
+  const { supabase, user } = await requireTenant()
+
+  const { data, error } = await supabase
+    .from('categories')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .select('id')
+
+  // 23503: transactions still reference it
+  if (error?.code === '23503') return { error: 'Categoria em uso por lançamentos e não pode ser removida.' }
+  if (error) return { error: 'Não foi possível remover a categoria. Tente novamente.' }
+  if (!data?.length) return { error: 'Categoria não encontrada (as categorias padrão não podem ser removidas).' }
+
+  revalidatePath('/app/configuracoes')
+  return { ok: true }
 }

@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { LogoutButton } from '@/components/logout-button'
 import { SubscriptionInfo, type SubscriptionStatus } from './subscription-info'
 import { WhatsAppLinkForm } from './whatsapp-link-form'
+import { CategoryDeleteButton, CategoryForm } from './category-form'
 
 export default async function ConfiguracoesPage() {
   const supabase = await createClient()
@@ -90,6 +91,7 @@ export default async function ConfiguracoesPage() {
                 <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Nome</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Tipo</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Padrão</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider text-muted-foreground w-24" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -117,14 +119,14 @@ export default async function ConfiguracoesPage() {
                       </Badge>
                     )}
                   </TableCell>
+                  <TableCell>
+                    {c.user_id === user!.id && <CategoryDeleteButton id={c.id} />}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-          <p className="text-xs text-muted-foreground mt-4">
-            Para adicionar categorias, insira diretamente na tabela{' '}
-            <code className="bg-muted px-1.5 py-0.5 rounded text-primary text-[11px]">categories</code> no Supabase.
-          </p>
+          <CategoryForm />
         </CardContent>
       </Card>
 
