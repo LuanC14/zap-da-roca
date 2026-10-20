@@ -36,6 +36,7 @@ Produção: Vercel (`zap-da-roca`, domínio canônico `https://zapdaroca.com.br`
 - `src/app/api/whatsapp/webhook/{route,handler}.ts` — bot. `route` valida assinatura e deduplica; `handler` executa comandos.
 - `src/app/api/cron/route.ts` — lembrete diário 08:00 BRT (`vercel.json`). `src/app/api/pagamento/webhook/route.ts` — Mercado Pago.
 - `src/lib/access.ts` — **única** regra de "tem acesso?" (`hasAccess`). `src/lib/tenant.ts` — `requireTenant()` para server actions.
+- `src/lib/ledger.ts` — gravações de lançamento/ponto compartilhadas por bot (service role) e painel (sessão); sempre com `user_id` explícito.
 - `src/lib/security.ts` — comparações em tempo constante e assinatura do Mercado Pago. `src/lib/whatsapp.ts` — envio (texto/template) e assinatura da Meta.
 - `src/lib/parsers/*` — comandos, datas (fuso `America/Sao_Paulo`), valores pt-BR, correspondência sem acento de categoria/funcionário.
 - `supabase/migrations/*` — schema + RLS. `supabase/tests/database/*.sql` — pgTAP. `src/test/fake-supabase.ts` — banco falso dos testes.
@@ -107,15 +108,15 @@ Ordem (a ordem importa — o webhook só valida depois que a Vercel tem o `WHATS
 8. Com os templates `APPROVED` (`npm run whatsapp:check`): preencher `WHATSAPP_TEMPLATE_OTP`/`_REMINDER` no `.env.deploy`, `provision --apply --only=whatsapp,redeploy`.
 9. Teste ponta a ponta: vincular o número em Configurações (recebe o código), `!ajuda`, `!pagar 10 diesel teste`, `!saldo`; conferir o lembrete das 08:00 no dia seguinte.
 
-## Status (atualizado em 2026-10-12)
+## Status (atualizado em 2026-10-20)
 
 **Verificado pelo dono em produção (2026-10-12):** cadastro de conta nova com e-mail de confirmação e recuperação de senha do admin, no domínio https://zapdaroca.com.br.
 
-**Pronto:** recuperação de senha (`/esqueci-senha` → e-mail → `/auth/callback?next=/redefinir-senha` → `/redefinir-senha`) · isolamento de tenant e hardening de RLS/billing (em produção, `rls:check` 20/20) · fail-closed em cron/webhooks · OTP com limites · bot corrigido
+**Pronto:** lançamento manual pelo painel (despesa/receita com categoria, quitar, excluir, diária e hora extra) usando as mesmas regras do bot · recuperação de senha (`/esqueci-senha` → e-mail → `/auth/callback?next=/redefinir-senha` → `/redefinir-senha`) · isolamento de tenant e hardening de RLS/billing (em produção, `rls:check` 20/20) · fail-closed em cron/webhooks · OTP com limites · bot corrigido
 (valores pt-BR, acentos, fuso, deduplicação) · cadastro de funcionários e categorias · financeiro com totais corretos e filtros · CI com gate + pgTAP verde ·
 smoke e provisionamento · domínio canônico apex · SMTP do Supabase via Resend (domínio verificado) · envio por template pronto (ativa por variável).
 
-**Bloqueado no dono:** aprovação do app no Mercado Pago · número WhatsApp Business + templates na Meta · apagar a chave antiga `zapdaroca` no painel do Resend ·
+**Bloqueado no dono:** aprovação do app no Mercado Pago · contratar a linha Vivo dedicada, registrar na Meta e aprovar templates · apagar a chave antiga `zapdaroca` no painel do Resend ·
 trocar a senha do admin e revogar tokens compartilhados no chat.
 
 **Próximo (quando destravar):** executar os checklists de go-live acima.
@@ -130,6 +131,8 @@ trocar a senha do admin e revogar tokens compartilhados no chat.
 | 2026-10-12 | Desativar funcionário em vez de excluir | Excluir apagaria o histórico de ponto por cascata |
 | 2026-10-12 | Apex `zapdaroca.com.br` canônico, `www` redireciona (308) | Site URL do Supabase e `NEXT_PUBLIC_APP_URL` já usavam o apex |
 | 2026-10-12 | `/auth/callback` aceita `next` só por allow-list (`safeNext`) | Evita open redirect em links de e-mail; recuperação de senha precisa pousar em `/redefinir-senha` |
+| 2026-10-20 | Linha WhatsApp: segunda linha Vivo dedicada ao produto (CPF atende; CNPJ/MEI depois para verificação do negócio) | A linha pessoal deixaria de funcionar no WhatsApp comum ao ser registrada na Cloud API |
+| 2026-10-20 | Lançamento manual no painel, sobre `ledger.ts` compartilhado com o bot | O produto precisa ser utilizável antes do WhatsApp Business; regras idênticas nos dois canais |
 | 2026-10-12 | Mensagens iniciadas pelo app via template (por variável de ambiente) | A Meta só entrega texto livre dentro da janela de 24 h |
 
 ## Armadilhas já encontradas

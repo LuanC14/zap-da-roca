@@ -93,3 +93,10 @@ export function parseMonthPeriod(input: string): { start: string; end: string } 
 
   return null
 }
+
+// A date typed in a form: real calendar date, not before 2000, not after next year
+export function isReasonableDate(value: string | undefined | null, now: Date = new Date()): value is string {
+  if (!isISODate(value)) return false
+  const nextYear = Number(todayISO(now).slice(0, 4)) + 1
+  return value >= '2000-01-01' && value <= `${nextYear}-12-31`
+}

@@ -1,7 +1,8 @@
 import { ParsedCommand } from '@/lib/parsers/command-parser'
 import { supabaseAdmin } from '@/lib/supabase'
 import { formatBrazilian, currentMonthRange, parseMonthPeriod } from '@/lib/parsers/date-parser'
-import { matchCategory, matchEmployee, type CategoryRow } from '@/lib/parsers/match'
+import { matchCategory, matchEmployee } from '@/lib/parsers/match'
+import { loadCategories, recordExtra, recordPonto, recordTransaction, settleTransaction } from '@/lib/ledger'
 import { formatCurrency } from '@/lib/format'
 import { hasAccess } from '@/lib/access'
 
@@ -181,23 +182,9 @@ async function handleRelatorio(userId: string, period?: string): Promise<string>
 async function handlePago(userId: string, id?: number): Promise<string> {
   if (!id) return '❌ Informe o ID do lançamento. Ex: !pago 42'
 
-  const { data: tx } = await supabaseAdmin
-    .from('transactions')
-    .select('id, amount, description, paid')
-    .eq('id', id)
-    .eq('user_id', userId)
-    .maybeSingle()
-
-  if (!tx) return `❌ Lançamento #${id} não encontrado.`
-  if (tx.paid) return `ℹ️ Lançamento #${id} já estava quitado.`
-
-  const { error } = await supabaseAdmin
-    .from('transactions')
-    .update({ paid: true, paid_at: new Date().toISOString() })
-    .eq('id', id)
-    .eq('user_id', userId)
-
-  if (error) throw error
+  const tx = await settleTransaction(supabaseAdmin, userId, id)
+  if (tx.status === 'not_found') return `❌ Lançamento #${id} não encontrado.`
+  if (tx.status === 'already_paid') return `ℹ️ Lançamento #${id} já estava quitado.`
 
   return `✅ Lançamento #${id} quitado!\n${tx.description} — ${formatCurrency(tx.amount)}`
 }
@@ -213,30 +200,17 @@ async function handleTransaction(userId: string, cmd: ParsedCommand, messageId: 
   const type = cmd.command === 'pagar' ? 'expense' : 'income'
 
   // Global categories (user_id IS NULL) + the tenant's own
-  const { data: cats } = await supabaseAdmin
-    .from('categories')
-    .select('id, name, type, user_id')
-    .or(`user_id.eq.${userId},user_id.is.null`)
-
-  const category = matchCategory((cats ?? []) as CategoryRow[], cmd.categoryKeyword, type)
+  const category = matchCategory(await loadCategories(supabaseAdmin, userId), cmd.categoryKeyword, type)
   const label = category?.name ?? cmd.categoryKeyword
 
-  const { data, error } = await supabaseAdmin
-    .from('transactions')
-    .insert({
-      user_id: userId,
-      type,
-      amount: cmd.amount,
-      category_id: category?.id ?? null,
-      description: cmd.description ?? label,
-      transaction_date: cmd.date,
-      paid: false,
-      whatsapp_message_id: messageId,
-    })
-    .select('id')
-    .single()
-
-  if (error) throw error
+  const data = await recordTransaction(supabaseAdmin, userId, {
+    type,
+    amount: cmd.amount,
+    category,
+    description: cmd.description ?? label,
+    date: cmd.date!,
+    messageId,
+  })
 
   const emoji = type === 'expense' ? '🔴' : '💚'
   const verb = type === 'expense' ? 'Despesa' : 'Receita'
@@ -278,38 +252,8 @@ async function handlePonto(userId: string, cmd: ParsedCommand): Promise<string> 
   if ('reply' in found) return found.reply
   const { employee } = found
 
-  const { data: existing } = await supabaseAdmin
-    .from('work_records')
-    .select('id, daily_rate_snapshot')
-    .eq('user_id', userId)
-    .eq('employee_id', employee.id)
-    .eq('work_date', cmd.date)
-
-  const dayRecord = existing?.[0]
-
-  if (existing?.some((r) => r.daily_rate_snapshot > 0)) {
+  if ((await recordPonto(supabaseAdmin, userId, employee, cmd.date!)) === 'duplicate') {
     return `ℹ️ Ponto de ${employee.name} em ${formatBrazilian(cmd.date!)} já está registrado.`
-  }
-
-  if (dayRecord) {
-    // Day already has an overtime-only record: add the daily rate to it
-    const { error } = await supabaseAdmin
-      .from('work_records')
-      .update({ regular_hours: 8, daily_rate_snapshot: employee.daily_rate })
-      .eq('id', dayRecord.id)
-      .eq('user_id', userId)
-    if (error) throw error
-  } else {
-    const { error } = await supabaseAdmin.from('work_records').insert({
-      user_id: userId,
-      employee_id: employee.id,
-      work_date: cmd.date,
-      regular_hours: 8,
-      overtime_hours: 0,
-      daily_rate_snapshot: employee.daily_rate,
-      overtime_rate_snapshot: 0,
-    })
-    if (error) throw error
   }
 
   return (
@@ -331,37 +275,7 @@ async function handleExtra(userId: string, cmd: ParsedCommand): Promise<string> 
   if ('reply' in found) return found.reply
   const { employee } = found
 
-  const { data: existing } = await supabaseAdmin
-    .from('work_records')
-    .select('id, overtime_hours')
-    .eq('user_id', userId)
-    .eq('employee_id', employee.id)
-    .eq('work_date', cmd.date)
-
-  const dayRecord = existing?.[0]
-
-  if (dayRecord) {
-    const { error } = await supabaseAdmin
-      .from('work_records')
-      .update({
-        overtime_hours: (dayRecord.overtime_hours ?? 0) + cmd.hours,
-        overtime_rate_snapshot: employee.overtime_rate,
-      })
-      .eq('id', dayRecord.id)
-      .eq('user_id', userId)
-    if (error) throw error
-  } else {
-    const { error } = await supabaseAdmin.from('work_records').insert({
-      user_id: userId,
-      employee_id: employee.id,
-      work_date: cmd.date,
-      regular_hours: 0,
-      overtime_hours: cmd.hours,
-      daily_rate_snapshot: 0,
-      overtime_rate_snapshot: employee.overtime_rate,
-    })
-    if (error) throw error
-  }
+  await recordExtra(supabaseAdmin, userId, employee, cmd.hours, cmd.date!)
 
   const totalExtra = cmd.hours * employee.overtime_rate
   return (

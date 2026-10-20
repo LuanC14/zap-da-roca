@@ -2,7 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/lib/tenant'
-import { matchKey, parseRate } from '@/lib/parsers/text'
+import { matchKey, parseHours, parseRate } from '@/lib/parsers/text'
+import { formatBrazilian, isReasonableDate } from '@/lib/parsers/date-parser'
+import { recordExtra, recordPonto } from '@/lib/ledger'
 
 export type ActionResult = { error?: string; ok?: true }
 
@@ -95,4 +97,50 @@ export async function setEmployeeActive(id: string, active: boolean): Promise<Ac
 
   revalidatePath('/app/funcionarios')
   return { ok: true }
+}
+
+// Manual equivalent of the bot's !ponto / !extra
+export async function registerWork(formData: FormData): Promise<ActionResult & { message?: string }> {
+  const { supabase, user } = await requireTenant()
+
+  const kind = String(formData.get('kind') ?? '')
+  if (kind !== 'ponto' && kind !== 'extra') return { error: 'Escolha diária ou hora extra.' }
+
+  const date = String(formData.get('date') ?? '')
+  if (!isReasonableDate(date)) return { error: 'Data inválida.' }
+
+  let hours = 0
+  if (kind === 'extra') {
+    const parsed = parseHours(String(formData.get('hours') ?? ''))
+    if (parsed === null) return { error: 'Horas inválidas (entre 0 e 24, ex.: 2 ou 2,5).' }
+    hours = parsed
+  }
+
+  const { data: employee } = await supabase
+    .from('employees')
+    .select('id, name, daily_rate, overtime_rate')
+    .eq('id', String(formData.get('employee_id') ?? ''))
+    .eq('user_id', user.id)
+    .eq('active', true)
+    .maybeSingle()
+  if (!employee) return { error: 'Funcionário não encontrado ou inativo.' }
+
+  try {
+    if (kind === 'ponto') {
+      if ((await recordPonto(supabase, user.id, employee, date)) === 'duplicate') {
+        return { error: `O ponto de ${employee.name} em ${formatBrazilian(date)} já está registrado.` }
+      }
+    } else {
+      await recordExtra(supabase, user.id, employee, hours, date)
+    }
+  } catch (err) {
+    console.error('registerWork failed:', err)
+    return { error: 'Não foi possível registrar. Tente novamente.' }
+  }
+
+  revalidatePath('/app', 'layout')
+  return {
+    ok: true,
+    message: kind === 'ponto' ? `Ponto de ${employee.name} registrado.` : `${hours}h extras de ${employee.name} registradas.`,
+  }
 }

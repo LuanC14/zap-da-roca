@@ -3,6 +3,7 @@ import {
   currentMonthRange,
   formatBrazilian,
   isISODate,
+  isReasonableDate,
   parseBrazilianDate,
   parseMonthPeriod,
   parseYearMonth,
@@ -86,5 +87,21 @@ describe('month ranges', () => {
     expect(isISODate('2026-02-30')).toBe(false)
     expect(isISODate('26-02-28')).toBe(false)
     expect(isISODate(undefined)).toBe(false)
+  })
+})
+
+describe('isReasonableDate', () => {
+  const now = new Date('2026-10-08T15:00:00Z')
+
+  it('accepts real dates from 2000 until the end of next year', () => {
+    expect(isReasonableDate('2026-10-08', now)).toBe(true)
+    expect(isReasonableDate('2000-01-01', now)).toBe(true)
+    expect(isReasonableDate('2027-12-31', now)).toBe(true)
+  })
+
+  it('rejects typos that would corrupt reports', () => {
+    for (const v of ['1999-12-31', '2028-01-01', '0026-09-15', '2026-02-30', '2026-9-1', '', null, undefined]) {
+      expect(isReasonableDate(v, now)).toBe(false)
+    }
   })
 })

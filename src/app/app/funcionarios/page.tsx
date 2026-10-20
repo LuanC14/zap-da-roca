@@ -1,10 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
-import { formatBrazilian } from '@/lib/parsers/date-parser'
+import { formatBrazilian, todayISO } from '@/lib/parsers/date-parser'
 import { formatCurrency } from '@/lib/format'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { EmployeeActions, EmployeeForm } from './employee-form'
+import { WorkForm } from './work-form'
 
 export default async function FuncionariosPage() {
   const supabase = await createClient()
@@ -41,6 +42,26 @@ export default async function FuncionariosPage() {
           </p>
         </CardContent>
       </Card>
+
+      {employees?.some((e) => e.active) && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Registrar ponto ou hora extra
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <WorkForm
+              employees={employees.filter((e) => e.active).map((e) => ({ id: e.id, name: e.name }))}
+              today={todayISO()}
+            />
+            <p className="text-xs text-muted-foreground mt-3">
+              O mesmo registro que o bot faz com <code className="bg-muted px-1.5 py-0.5 rounded text-primary">!ponto</code> e{' '}
+              <code className="bg-muted px-1.5 py-0.5 rounded text-primary">!extra</code>. Não duplica a diária do mesmo dia.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="pb-3">

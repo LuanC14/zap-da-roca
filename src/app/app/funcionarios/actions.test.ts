@@ -14,7 +14,7 @@ vi.mock('next/navigation', () => ({
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-import { createEmployee, setEmployeeActive, updateEmployee } from './actions'
+import { createEmployee, registerWork, setEmployeeActive, updateEmployee } from './actions'
 
 const form = (fields: Record<string, string>) => {
   const f = new FormData()
@@ -119,5 +119,49 @@ describe('setEmployeeActive', () => {
     await setEmployeeActive('e1', false)
     await createEmployee(form({ name: 'João Silva', daily_rate: '90', overtime_rate: '9' }))
     expect((await setEmployeeActive('e1', true)).error).toContain('Já existe')
+  })
+})
+
+describe('registerWork', () => {
+  const ponto = { employee_id: 'e1', kind: 'ponto', date: '2026-10-01' }
+  const extra = { employee_id: 'e1', kind: 'extra', date: '2026-10-01', hours: '2,5' }
+
+  it('records a daily rate once per day and refuses a second one', async () => {
+    expect((await registerWork(form(ponto))).ok).toBe(true)
+    expect(h.db.tables.work_records[0]).toMatchObject({ user_id: 'user-a', employee_id: 'e1', daily_rate_snapshot: 100 })
+    expect((await registerWork(form(ponto))).error).toContain('já está registrado')
+    expect(h.db.tables.work_records).toHaveLength(1)
+  })
+
+  it('records overtime hours with a decimal comma and merges them into the day', async () => {
+    const res = await registerWork(form(extra))
+    expect(res.ok).toBe(true)
+    expect(res.message).toContain('2.5h')
+    await registerWork(form(ponto))
+    expect(h.db.tables.work_records).toHaveLength(1)
+    expect(h.db.tables.work_records[0]).toMatchObject({ overtime_hours: 2.5, daily_rate_snapshot: 100, overtime_rate_snapshot: 15 })
+  })
+
+  it.each([
+    [{ kind: 'folga' }, 'diária ou hora extra'],
+    [{ date: '2026-13-01' }, 'Data inválida'],
+    [{ kind: 'extra', hours: '' }, 'Horas inválidas'],
+    [{ kind: 'extra', hours: '30' }, 'Horas inválidas'],
+    [{ kind: 'extra', hours: '-2' }, 'Horas inválidas'],
+  ])('rejects invalid input %j', async (patch, message) => {
+    expect((await registerWork(form({ ...extra, ...patch }))).error).toContain(message)
+    expect(h.db.tables.work_records).toHaveLength(0)
+  })
+
+  it('cannot register work for another tenant’s or an inactive employee', async () => {
+    expect((await registerWork(form({ ...ponto, employee_id: 'e3' }))).error).toContain('não encontrado')
+    await setEmployeeActive('e1', false)
+    expect((await registerWork(form(ponto))).error).toContain('não encontrado ou inativo')
+    expect(h.db.tables.work_records).toHaveLength(0)
+  })
+
+  it('requires an active plan', async () => {
+    h.userId = 'user-expired'
+    await expect(registerWork(form(ponto))).rejects.toThrow('REDIRECT:/assinar')
   })
 })

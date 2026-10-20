@@ -1,9 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
-import { formatBrazilian, parseYearMonth } from '@/lib/parsers/date-parser'
+import { formatBrazilian, parseYearMonth, todayISO } from '@/lib/parsers/date-parser'
 import { formatCurrency } from '@/lib/format'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { TransactionForm, TransactionRowActions, type CategoryOption } from './transaction-form'
 
 const LIST_LIMIT = 100
 const QUERY_CAP = 1000 // PostgREST max_rows
@@ -33,6 +34,8 @@ export default async function FinanceiroPage({
   }
 
   const { data } = await query
+  const { data: categoryRows } = await supabase.from('categories').select('id, name, type').order('name')
+  const categories = (categoryRows ?? []) as CategoryOption[]
   const transactions = data ?? []
   const shown = transactions.slice(0, LIST_LIMIT)
   const capped = transactions.length >= QUERY_CAP
@@ -51,6 +54,18 @@ export default async function FinanceiroPage({
         <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5">Controle</p>
         <h1 className="text-3xl font-bold font-heading text-foreground">Financeiro</h1>
       </div>
+
+      {/* New transaction */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Novo lançamento
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TransactionForm categories={categories} today={todayISO()} />
+        </CardContent>
+      </Card>
 
       {/* Filters */}
       <form method="get" className="flex flex-wrap items-end gap-3">
@@ -118,12 +133,13 @@ export default async function FinanceiroPage({
                 <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Tipo</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider text-muted-foreground text-right">Valor</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Status</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider text-muted-foreground">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {transactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-10">
                     Nenhum lançamento encontrado.
                   </TableCell>
                 </TableRow>
@@ -152,6 +168,9 @@ export default async function FinanceiroPage({
                       >
                         {t.paid ? 'Pago' : 'Pendente'}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <TransactionRowActions id={t.id} paid={t.paid} />
                     </TableCell>
                   </TableRow>
                 ))
