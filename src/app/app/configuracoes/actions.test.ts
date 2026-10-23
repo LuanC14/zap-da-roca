@@ -213,3 +213,21 @@ describe('custom categories', () => {
     expect(h.db.tables.categories).toHaveLength(6)
   })
 })
+
+describe('ninth digit equivalence when linking', () => {
+  it('refuses a number whose other form is already linked to someone else', async () => {
+    h.db.tables.registered_phones.push({ user_id: 'user-b', whatsapp_number: '551188887777', verified: true })
+    const res = await sendPhoneVerification(form({ phone: '(11) 98888-7777' }))
+    expect(res.error).toContain('outra conta')
+    expect(send).not.toHaveBeenCalled()
+  })
+
+  it('does not take over the other form at verification time either', async () => {
+    await sendPhoneVerification(form({ phone: '(11) 98888-7777' }))
+    const code = String(h.db.tables.phone_verifications.at(-1)!.code)
+    h.db.tables.registered_phones.push({ user_id: 'user-b', whatsapp_number: '551188887777', verified: true })
+    const res = await verifyPhoneCode(form({ phone: '(11) 98888-7777', code }))
+    expect(res.error).toContain('outra conta')
+    expect(h.db.tables.registered_phones.some((p) => p.user_id === 'user-a' && p.whatsapp_number === '5511988887777')).toBe(false)
+  })
+})

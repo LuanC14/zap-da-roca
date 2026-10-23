@@ -5,6 +5,7 @@ import { matchCategory, matchEmployee } from '@/lib/parsers/match'
 import { loadCategories, recordExtra, recordPonto, recordTransaction, settleTransaction } from '@/lib/ledger'
 import { formatCurrency } from '@/lib/format'
 import { hasAccess } from '@/lib/access'
+import { brazilPhoneVariants } from '@/lib/phone'
 
 const AJUDA = `🌾 *ZapRural — Comandos disponíveis*
 
@@ -37,15 +38,16 @@ export async function handleCommand(
   from: string,
   messageId: string
 ): Promise<string> {
-  const { data: phone, error: phoneError } = await supabaseAdmin
+  const { data: phones, error: phoneError } = await supabaseAdmin
     .from('registered_phones')
     .select('user_id')
-    .eq('whatsapp_number', from)
+    .in('whatsapp_number', brazilPhoneVariants(from))
     .eq('verified', true)
-    .maybeSingle()
+    .limit(1)
 
   // A database failure must not be reported to the user as "number not registered"
   if (phoneError) throw phoneError
+  const phone = phones?.[0]
   if (!phone?.user_id) return NOT_LINKED
 
   const userId = phone.user_id

@@ -8,6 +8,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { sendVerificationCode } from '@/lib/whatsapp'
 import { safeEqual } from '@/lib/security'
 import { requireTenant } from '@/lib/tenant'
+import { brazilPhoneVariants } from '@/lib/phone'
 import { matchKey } from '@/lib/parsers/text'
 import { MercadoPagoConfig, PreApproval } from 'mercadopago'
 
@@ -38,10 +39,9 @@ export async function sendPhoneVerification(
   const { data: existing } = await supabaseAdmin
     .from('registered_phones')
     .select('user_id')
-    .eq('whatsapp_number', phone)
-    .maybeSingle()
+    .in('whatsapp_number', brazilPhoneVariants(phone))
 
-  if (existing && existing.user_id !== user.id) {
+  if (existing?.some((row) => row.user_id !== user.id)) {
     return { error: 'Este número já está vinculado a outra conta.' }
   }
 
@@ -127,13 +127,12 @@ export async function verifyPhoneCode(
     .eq('id', verification.id)
 
   // Never take over a number another tenant linked in the meantime
-  const { data: owner } = await supabaseAdmin
+  const { data: owners } = await supabaseAdmin
     .from('registered_phones')
     .select('user_id')
-    .eq('whatsapp_number', phone)
-    .maybeSingle()
+    .in('whatsapp_number', brazilPhoneVariants(phone))
 
-  if (owner && owner.user_id !== user.id) {
+  if (owners?.some((row) => row.user_id !== user.id)) {
     return { error: 'Este número já está vinculado a outra conta.' }
   }
 

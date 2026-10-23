@@ -218,3 +218,25 @@ describe('employees', () => {
     expect(reply).not.toContain('Pedro')
   })
 })
+
+describe('Brazilian ninth digit (Meta may report either form of the same number)', () => {
+  it('finds a number stored with the ninth digit when the webhook reports it without', async () => {
+    // stored: 5511999990001 (13 digits) → webhook sends 551199990001 (12 digits)
+    expect(await say('551199990001', '!ajuda')).toContain('Comandos disponíveis')
+  })
+
+  it('finds a number stored without the ninth digit when the webhook reports it with', async () => {
+    h.db.tables.registered_phones.push({ user_id: 'user-a', whatsapp_number: '551188887777', verified: true })
+    expect(await say('5511988887777', '!ajuda')).toContain('Comandos disponíveis')
+  })
+
+  it('keeps tenants apart through the alternate form', async () => {
+    await say('551199990001', '!receber 1000 safra venda')
+    await say('551199990002', '!receber 5 safra venda')
+    expect(h.db.tables.transactions.map((t) => [t.user_id, t.amount])).toEqual([['user-a', 1000], ['user-b', 5]])
+  })
+
+  it('still rejects numbers that match no registered phone in any form', async () => {
+    expect(await say('551199990099', '!ajuda')).toContain('Número não cadastrado')
+  })
+})
