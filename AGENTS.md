@@ -26,6 +26,7 @@ Produção: Vercel (`zap-da-roca`, domínio canônico `https://zapdaroca.com.br`
 | `npm run db:start` / `db:reset` | Supabase local (precisa de Docker Desktop ligado) |
 | `npm run smoke` | Verificação **somente leitura** da produção (15 checagens) |
 | `npm run rls:check` | Isolamento entre tenants contra um Supabase real (cria e apaga 2 usuários temporários) |
+| `npm run whatsapp:setup` | Configura a Meta pela API (webhook de produção, inscrição do app na conta, templates). **Simulação por padrão**; `-- --apply` executa |
 | `npm run whatsapp:check` | Verificação somente leitura da conta WhatsApp Business na Meta |
 | `npm run provision` | Provisionamento (Vercel env, domínio, Supabase Auth). **Simulação por padrão**; `-- --apply` executa |
 | `node scripts/test-bot.js "!saldo"` | Envia um comando ao webhook local (dev) |
@@ -103,18 +104,20 @@ Ordem (a ordem importa — o webhook só valida depois que a Vercel tem o `WHATS
 6. **Webhook na Meta**: Callback URL `https://zapdaroca.com.br/api/whatsapp/webhook`, Verify token = `WHATSAPP_VERIFY_TOKEN`, assinar o campo `messages`. Só agora, com a Vercel já atualizada.
 7. Templates (pt_BR) — mensagens que o app inicia **exigem** template aprovado; respostas a comandos do usuário (janela de 24 h) usam texto livre:
    - **Autenticação** `zapdaroca_codigo` (código com botão "copiar código", validade 10 min) → `WHATSAPP_TEMPLATE_OTP=zapdaroca_codigo`.
-   - **Utilidade** `zapdaroca_lembrete`: `☀️ Bom dia! Contas para hoje ({{1}}): {{2}}. Total: {{3}}. Responda !pago <id> para quitar.` → `WHATSAPP_TEMPLATE_REMINDER=zapdaroca_lembrete`.
+   - **Utilidade** `zapdaroca_lembrete` (criado pelo `whatsapp:setup`): `☀️ Bom dia! Contas para hoje ({{1}}): {{2}}. Total: {{3}}. Para quitar, envie !pago e o número do lançamento.` → `WHATSAPP_TEMPLATE_REMINDER=zapdaroca_lembrete`.
    - Idioma diferente de pt_BR → `WHATSAPP_TEMPLATE_LANG`. Sem as variáveis de template o app envia texto livre (que a Meta só entrega dentro da janela de 24 h).
 8. Com os templates `APPROVED` (`npm run whatsapp:check`): preencher `WHATSAPP_TEMPLATE_OTP`/`_REMINDER` no `.env.deploy`, `provision --apply --only=whatsapp,redeploy`.
 9. Teste ponta a ponta: vincular o número em Configurações (recebe o código), `!ajuda`, `!pagar 10 diesel teste`, `!saldo`; conferir o lembrete das 08:00 no dia seguinte.
 
-## Status (atualizado em 2026-10-20)
+## Status (atualizado em 2026-10-24)
 
 **Verificado pelo dono em produção (2026-10-12):** cadastro de conta nova com e-mail de confirmação e recuperação de senha do admin, no domínio https://zapdaroca.com.br.
 
 **Pronto:** lançamento manual pelo painel (despesa/receita com categoria, quitar, excluir, diária e hora extra) usando as mesmas regras do bot · recuperação de senha (`/esqueci-senha` → e-mail → `/auth/callback?next=/redefinir-senha` → `/redefinir-senha`) · isolamento de tenant e hardening de RLS/billing (em produção, `rls:check` 20/20) · fail-closed em cron/webhooks · OTP com limites · bot corrigido
 (valores pt-BR, acentos, fuso, deduplicação) · cadastro de funcionários e categorias · financeiro com totais corretos e filtros · CI com gate + pgTAP verde ·
 smoke e provisionamento · domínio canônico apex · SMTP do Supabase via Resend (domínio verificado) · envio por template pronto (ativa por variável).
+
+**WhatsApp (2026-10-24):** número +55 74 9198-9589 ("Zap do Produtor") verificado, LIVE, Cloud API; token permanente de usuário do sistema; variáveis na Vercel; webhook da Meta apontando para produção e app inscrito na conta (via `whatsapp:setup`); template `zapdaroca_lembrete` em revisão. **Template de autenticação** (`zapdaroca_codigo`) recusado pela Meta ("conta sem permissão para criar modelo" — em geral exige verificação do negócio). Enquanto isso, o código de vínculo só chega como texto livre se o usuário **mandar uma mensagem ao número antes** (janela de 24 h).
 
 **Bloqueado no dono:** aprovação do app no Mercado Pago · contratar a linha Vivo dedicada, registrar na Meta e aprovar templates · apagar a chave antiga `zapdaroca` no painel do Resend ·
 trocar a senha do admin e revogar tokens compartilhados no chat.

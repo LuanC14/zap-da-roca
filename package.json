@@ -14,6 +14,7 @@
     "rls:check": "node scripts/rls-check.mjs",
     "provision": "node scripts/provision.mjs",
     "whatsapp:check": "node scripts/whatsapp-check.mjs",
+    "whatsapp:setup": "node scripts/whatsapp-setup.mjs",
     "db:start": "supabase start --debug",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
