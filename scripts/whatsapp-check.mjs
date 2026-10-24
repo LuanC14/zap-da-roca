@@ -39,7 +39,9 @@ if (!token || !phoneId) {
     const p = await graph(`/${phoneId}?fields=display_phone_number,verified_name,quality_rating,code_verification_status,name_status,platform_type,throughput`)
     ok(`number ${p.display_phone_number} · name "${p.verified_name}"`)
     p.code_verification_status === 'VERIFIED' ? ok('number is verified') : bad(`number verification status: ${p.code_verification_status}`)
-    p.name_status && p.name_status !== 'APPROVED' ? bad(`display name status: ${p.name_status} (must be APPROVED to leave the sandbox limits)`) : ok('display name approved')
+    // AVAILABLE_WITHOUT_REVIEW = the name is usable without Meta's review; anything else needs attention
+    const usableNames = ['APPROVED', 'AVAILABLE_WITHOUT_REVIEW']
+    p.name_status && !usableNames.includes(p.name_status) ? bad(`display name status: ${p.name_status} (waiting for Meta's review or rejected)`) : ok(`display name usable (${p.name_status ?? 'n/a'})`)
     info(`quality rating: ${p.quality_rating ?? 'n/a'} · platform: ${p.platform_type ?? 'n/a'}`)
     if (p.platform_type && p.platform_type !== 'CLOUD_API') bad('number is not on the Cloud API platform')
   } catch (err) {
